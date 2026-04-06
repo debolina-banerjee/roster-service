@@ -17,14 +17,13 @@ public class ExcelReportController {
     @GetMapping("/roster-excel/{weekStart}")
     public ResponseEntity<byte[]> excel(
             @PathVariable LocalDate weekStart
-    ) throws Exception {
-
+    ){try {
         byte[] data = service.weeklyMatrix(weekStart);
 
         return ResponseEntity.ok()
                 .header(
                         HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=Roster_"+weekStart+".xlsx"
+                        "attachment; filename=Roster_" + weekStart + ".xlsx"
                 )
                 .contentType(
                         MediaType.parseMediaType(
@@ -32,5 +31,10 @@ public class ExcelReportController {
                         )
                 )
                 .body(data);
+
+    } catch (Exception e) {
+        e.printStackTrace();  // 🔥 THIS IS KEY
+        throw new RuntimeException("Excel generation failed: " + e.getMessage());
     }
-}
+
+}}
