@@ -28,15 +28,15 @@ public class ExcelReportService {
     private final LeaveImportRepository leaveRepo;
     private final ShiftConfigRepository shiftConfigRepo;
 
+    // ✅ ADDED (IMPORTANT FIX)
+    private final RosterWeekRepository rosterWeekRepository;
+
     private static final DateTimeFormatter DAY_FMT =
             DateTimeFormatter.ofPattern("EEE, dd-MMM");
 
-    // =====================================================
-    // MAIN MATRIX
-    // =====================================================
     public byte[] weeklyMatrix(LocalDate weekStart) throws Exception {
 
-        Long weekId = getWeekId(weekStart); // ✅ fetch once
+        Long weekId = getWeekId(weekStart); // ✅ fixed method
 
         List<ShiftAssignment> list =
                 assignmentRepo.findByRosterDay_DayDateBetween(
@@ -49,7 +49,7 @@ public class ExcelReportService {
                                 Collectors.toMap(
                                         a -> a.getRosterDay().getDayDate(),
                                         a -> a,
-                                        (a, b) -> a // safety merge
+                                        (a, b) -> a
                                 )
                         )
                 );
@@ -63,7 +63,6 @@ public class ExcelReportService {
         Workbook wb = new XSSFWorkbook();
         Sheet s = wb.createSheet("Roster");
 
-        // styles
         CellStyle h = ExcelStyleUtil.header(wb);
         CellStyle early = ExcelStyleUtil.color(wb, IndexedColors.PALE_BLUE);
         CellStyle evening = ExcelStyleUtil.color(wb, IndexedColors.LIGHT_ORANGE);
@@ -73,7 +72,6 @@ public class ExcelReportService {
         CellStyle off = ExcelStyleUtil.color(wb, IndexedColors.YELLOW);
         CellStyle leave = ExcelStyleUtil.color(wb, IndexedColors.ROSE);
 
-        // HEADER
         Row r0 = s.createRow(0);
         r0.createCell(0).setCellValue("Employee");
         r0.getCell(0).setCellStyle(h);
@@ -141,7 +139,6 @@ public class ExcelReportService {
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
 
-        // ✅ summary
         buildShiftSummarySheet(wb, weekStart, weekId);
         buildEmployeeFairnessSheet(wb, weekStart, weekId);
 
@@ -150,9 +147,6 @@ public class ExcelReportService {
         return out.toByteArray();
     }
 
-    // =====================================================
-    // SHIFT SUMMARY SHEET
-    // =====================================================
     private void buildShiftSummarySheet(
             Workbook wb,
             LocalDate weekStart,
@@ -233,21 +227,16 @@ public class ExcelReportService {
         for (int i = 0; i < 5; i++) sheet.autoSizeColumn(i);
     }
 
-    // =====================================================
-    // WEEK RESOLVER
-    // =====================================================
+    // ✅ FIXED METHOD (ONLY CHANGE)
     private Long getWeekId(LocalDate weekStart) {
-
-        Long weekId =
-                assignmentRepo.findWeekIdByStartDate(weekStart);
-
-        if (weekId == null) {
-            throw new IllegalStateException(
-                    "No roster week found for start date: " + weekStart);
-        }
-
-        return weekId;
+        return rosterWeekRepository
+                .findByWeekStartDate(weekStart)
+                .orElseThrow(() ->
+                        new IllegalStateException(
+                                "No roster week found for start date: " + weekStart))
+                .getId();
     }
+
     private void buildEmployeeFairnessSheet(
             Workbook wb,
             LocalDate weekStart,
@@ -325,7 +314,6 @@ public class ExcelReportService {
                             weekStart,
                             weekStart.plusDays(6));
 
-            // 🔥 FAIRNESS LOGIC (tuneable)
             String fairness;
             CellStyle style;
 
