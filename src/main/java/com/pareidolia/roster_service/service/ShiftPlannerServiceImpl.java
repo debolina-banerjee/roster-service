@@ -43,7 +43,10 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
     @Transactional
     public void planDay(RosterDay rosterDay) {
 
-        log.info(">>> ENTERED planDay for date={} <<<", rosterDay.getDayDate());
+        log.info(">>> planDay started | date={} | weekId={} | category={}",
+                rosterDay.getDayDate(),
+                rosterDay.getRosterWeek().getId(),
+                rosterDay.getDayCategory());
 
         if (shiftAssignmentRepository.existsByRosterDay_Id(rosterDay.getId()))
             return;
