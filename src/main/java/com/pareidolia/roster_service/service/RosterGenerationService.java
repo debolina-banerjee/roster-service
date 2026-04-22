@@ -20,6 +20,7 @@ public class RosterGenerationService {
     private final WeeklyOffService weeklyOffService;
     private final ShiftPlannerService shiftPlannerService;
     private final OnDutyTopupService onDutyTopupService;
+    private final WeekendNightDonorRebalanceService weekendNightDonorRebalanceService;
 
     public void generateForWeek(LocalDate weekStartDate) {
 
@@ -41,6 +42,9 @@ public class RosterGenerationService {
 
         // 3. ON_DUTY topup
         onDutyTopupService.fillOnDuty(weekStartDate);
+
+
+        weekendNightDonorRebalanceService.execute(weekStartDate);
 
         // 4. FAIRNESS + HOURS SUMMARY (UNCHANGED ✅)
         summaryService.calculateSummary(
