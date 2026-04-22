@@ -354,11 +354,17 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                             + getRequired(shiftConfigs, GRAVEYARD);
 
             if ((nightNow + graveNow) <= (normalNeed - 1)) {
-                weekdayNightDonorUsed++;
+                //weekdayNightDonorUsed++;
+                if (weekdayNightDonorUsed < MAX_WEEKDAY_DONOR) {
+                    weekdayNightDonorUsed++;
+                }
             }
         }
         performEarlyRecovery(rosterDay, assignedToday);
-        performNightRecovery(rosterDay, assignedToday);
+        //performNightRecovery(rosterDay, assignedToday);
+        if (!isDonorWeekdayApplied(rosterDay, shiftConfigs)) {
+            performNightRecovery(rosterDay, assignedToday);
+        }
         // Early first
         performFinalBackfillEveningFirst(rosterDay, employees, assignedToday); // Evening priority fill
         performEveningLastRescue(rosterDay, assignedToday);       // last safety
@@ -1556,6 +1562,26 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
         return day.getDayCategory() ==
                 com.pareidolia.roster_service.enumtype.DayCategory.WEEKDAY
                 && weekdayNightDonorUsed < MAX_WEEKDAY_DONOR;
+    }
+
+    private boolean isDonorWeekdayApplied(
+            RosterDay day,
+            List<ShiftConfig> shiftConfigs) {
+
+        if (day.getDayCategory() !=
+                com.pareidolia.roster_service.enumtype.DayCategory.WEEKDAY) {
+            return false;
+        }
+
+        long total =
+                shiftAssignmentRepository.countByRosterDayAndShiftCode(day.getId(), NIGHT)
+                        + shiftAssignmentRepository.countByRosterDayAndShiftCode(day.getId(), GRAVEYARD);
+
+        int normalNeed =
+                getRequired(shiftConfigs, NIGHT)
+                        + getRequired(shiftConfigs, GRAVEYARD);
+
+        return total <= normalNeed - 1;
     }
 
 }
