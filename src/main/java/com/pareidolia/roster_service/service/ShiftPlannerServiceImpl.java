@@ -39,6 +39,10 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
     private static final List<ShiftCode> PRIORITY =
             List.of( NIGHT,GRAVEYARD,EARLY_MORNING,EVENING,ON_DUTY);
 
+    private Long donorWeekId = null;
+    private int weekdayNightDonorUsed = 0;
+    private static final int MAX_WEEKDAY_DONOR = 2;
+
     @Override
     @Transactional
     public void planDay(RosterDay rosterDay) {
@@ -52,6 +56,8 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
             return;
 
         Long weekId = rosterDay.getRosterWeek().getId();
+
+        resetDonorCounterIfNewWeek(weekId);
 
         List<ShiftConfig> shiftConfigs =
                 shiftConfigRepository
@@ -90,11 +96,34 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
         int eveningRequired = getRequired(shiftConfigs, EVENING);
         int graveyardRequired = getRequired(shiftConfigs, GRAVEYARD);
 
+
+
         // ================= PASS 1 =================
         for (ShiftConfig config : shiftConfigs) {
 
+//            ShiftCode sc = config.getShiftType().getCode();
+//            int required = config.getRequiredResources();
+//
+//            if (required == 0 || sc == ON_DUTY) continue;
+
+
             ShiftCode sc = config.getShiftType().getCode();
             int required = config.getRequiredResources();
+
+            if (canUseWeekdayDonor(rosterDay)
+                    && (sc == NIGHT || sc == GRAVEYARD)) {
+
+                int totalNightFamily =
+                        getRequired(shiftConfigs, NIGHT)
+                                + getRequired(shiftConfigs, GRAVEYARD);
+
+                if (totalNightFamily == 8) {
+
+                    if (sc == GRAVEYARD && required > 0) {
+                        required = required - 1;
+                    }
+                }
+            }
 
             if (required == 0 || sc == ON_DUTY) continue;
 
@@ -307,6 +336,25 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                     log.debug("Assignment blocked → emp={} shift={} reason={}",
                             emp.getEmployeeCode(), sc, ex.getMessage());
                 }
+            }
+        }
+
+        if (canUseWeekdayDonor(rosterDay)) {
+
+            long nightNow =
+                    shiftAssignmentRepository.countByRosterDayAndShiftCode(
+                            rosterDay.getId(), NIGHT);
+
+            long graveNow =
+                    shiftAssignmentRepository.countByRosterDayAndShiftCode(
+                            rosterDay.getId(), GRAVEYARD);
+
+            int normalNeed =
+                    getRequired(shiftConfigs, NIGHT)
+                            + getRequired(shiftConfigs, GRAVEYARD);
+
+            if ((nightNow + graveNow) <= (normalNeed - 1)) {
+                weekdayNightDonorUsed++;
             }
         }
         performEarlyRecovery(rosterDay, assignedToday);
@@ -1495,6 +1543,19 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                         ex.getMessage());
             }
         }
+    }
+
+    private void resetDonorCounterIfNewWeek(Long weekId) {
+        if (donorWeekId == null || !donorWeekId.equals(weekId)) {
+            donorWeekId = weekId;
+            weekdayNightDonorUsed = 0;
+        }
+    }
+
+    private boolean canUseWeekdayDonor(RosterDay day) {
+        return day.getDayCategory() ==
+                com.pareidolia.roster_service.enumtype.DayCategory.WEEKDAY
+                && weekdayNightDonorUsed < MAX_WEEKDAY_DONOR;
     }
 
 }
