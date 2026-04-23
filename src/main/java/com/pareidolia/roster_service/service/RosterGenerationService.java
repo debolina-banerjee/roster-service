@@ -24,56 +24,31 @@ public class RosterGenerationService {
 
     public void generateForWeek(LocalDate weekStartDate) {
 
-        // ✅ fetch week first (FIX)
         RosterWeek rosterWeek =
                 rosterWeekRepository.findByWeekStartDate(weekStartDate)
                         .orElseThrow();
 
-        // 1. Generate weekly offs
-        weeklyOffService.generateWeeklyOffs( rosterWeek.getId(),weekStartDate);
+        // 1 Weekly offs
+        weeklyOffService.generateWeeklyOffs(
+                rosterWeek.getId(),
+                weekStartDate
+        );
 
-//        List<RosterDay> days =
-//                rosterDayRepository.findByRosterWeekId(rosterWeek.getId());
-//
-//        // 2. Plan normal shifts
-//        for (RosterDay day : days) {
-//            shiftPlannerService.planDay(day);
-//        }
-
+        // 2 Normal planning (natural Mon→Sun order)
         List<RosterDay> days =
                 rosterDayRepository.findByRosterWeekId(rosterWeek.getId());
 
-//        days = days.stream()
-//                .sorted((a, b) -> Integer.compare(
-//                        planningPriority(a.getDayDate().getDayOfWeek().getValue()),
-//                        planningPriority(b.getDayDate().getDayOfWeek().getValue())
-//                ))
-//                .toList();
-
-        days = days.stream()
-                .sorted((a, b) -> Integer.compare(
-                        planningPriority(a.getDayDate().getDayOfWeek().getValue()),
-                        planningPriority(b.getDayDate().getDayOfWeek().getValue())
-                ))
-                .collect(java.util.stream.Collectors.toList());
-
-// DEBUG ORDER CHECK
-        for (RosterDay d : days) {
-            System.out.println("PLAN ORDER => " + d.getDayDate());
-        }
-
-// 2. Plan shifts (WEEKEND FIRST)
         for (RosterDay day : days) {
             shiftPlannerService.planDay(day);
         }
 
-        // 3. ON_DUTY topup
+        // 3 ON_DUTY topup
         onDutyTopupService.fillOnDuty(weekStartDate);
 
-
+        // 4 Weekend donor rebalance
         weekendNightDonorRebalanceService.execute(weekStartDate);
 
-        // 4. FAIRNESS + HOURS SUMMARY (UNCHANGED ✅)
+        // 5 Summary
         summaryService.calculateSummary(
                 rosterWeek.getId(),
                 weekStartDate
@@ -86,21 +61,5 @@ public class RosterGenerationService {
 
     public List<ShiftAssignment> getAssignmentsForWeek(Long weekId) {
         return shiftAssignmentRepository.findByRosterDay_RosterWeek_Id(weekId);
-    }
-
-    private int planningPriority(int dayOfWeek) {
-
-        // Monday=1 ... Sunday=7
-
-        return switch (dayOfWeek) {
-            case 6 -> 1; // Saturday
-            case 7 -> 2; // Sunday
-            case 1 -> 3; // Monday
-            case 2 -> 4; // Tuesday
-            case 3 -> 5; // Wednesday
-            case 4 -> 6; // Thursday
-            case 5 -> 7; // Friday
-            default -> 99;
-        };
     }
 }
