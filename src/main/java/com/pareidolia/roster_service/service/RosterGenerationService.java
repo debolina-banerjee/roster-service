@@ -71,7 +71,7 @@ public class RosterGenerationService {
         onDutyTopupService.fillOnDuty(weekStartDate);
 
 
-        //weekendNightDonorRebalanceService.execute(weekStartDate);
+        weekendNightDonorRebalanceService.execute(weekStartDate);
 
         // 4. FAIRNESS + HOURS SUMMARY (UNCHANGED ✅)
         summaryService.calculateSummary(
