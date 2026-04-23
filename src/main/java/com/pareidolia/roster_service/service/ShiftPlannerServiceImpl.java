@@ -119,7 +119,7 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
             //Donor rotation change - 2
 
 
-            if (isDonorWeekday && sc == NIGHT) {
+            if (isDonorWeekday && sc == GRAVEYARD) {
                 required = Math.max(0, required - 1);
             }
 
@@ -163,10 +163,10 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                 //Donor rotation change - 3
                 int dynamicNightRequired = getRequired(shiftConfigs, NIGHT);
 
-                if (isDonorWeekday) {
-                    dynamicNightRequired =
-                            Math.max(0, dynamicNightRequired - 1);
-                }
+//                if (isDonorWeekday) {
+//                    dynamicNightRequired =
+//                            Math.max(0, dynamicNightRequired - 1);
+//                }
 
                 int nightRemaining =
                         dynamicNightRequired
@@ -641,10 +641,10 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
         boolean isDonorWeekday =
                 !isWeekend &&
                         donorDays.contains(getIsoDay(day.getDayDate()));
-
-        if (isDonorWeekday) {
-            nightReq = Math.max(0, nightReq - 1);
-        }
+//
+//        if (isDonorWeekday) {
+//            nightReq = Math.max(0, nightReq - 1);
+//        }
         int graveReq = requiredFor(day, GRAVEYARD);
 
         int nightGap = nightReq - (int) liveNight;
@@ -668,7 +668,7 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 
             //Donor rotation change - 5
 
-            if (code == NIGHT && isDonorWeekday) {
+            if (code == GRAVEYARD  && isDonorWeekday) {
                 required = Math.max(0, required - 1);
             }
 //ends here
