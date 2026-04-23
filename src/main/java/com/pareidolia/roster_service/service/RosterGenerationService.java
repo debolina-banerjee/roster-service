@@ -24,31 +24,29 @@ public class RosterGenerationService {
 
     public void generateForWeek(LocalDate weekStartDate) {
 
+        // ✅ fetch week first (FIX)
         RosterWeek rosterWeek =
                 rosterWeekRepository.findByWeekStartDate(weekStartDate)
                         .orElseThrow();
 
-        // 1 Weekly offs
-        weeklyOffService.generateWeeklyOffs(
-                rosterWeek.getId(),
-                weekStartDate
-        );
+        // 1. Generate weekly offs
+        weeklyOffService.generateWeeklyOffs( rosterWeek.getId(),weekStartDate);
 
-        // 2 Normal planning (natural Mon→Sun order)
         List<RosterDay> days =
                 rosterDayRepository.findByRosterWeekId(rosterWeek.getId());
 
+        // 2. Plan normal shifts
         for (RosterDay day : days) {
             shiftPlannerService.planDay(day);
         }
 
-        // 3 ON_DUTY topup
+        // 3. ON_DUTY topup
         onDutyTopupService.fillOnDuty(weekStartDate);
 
-        // 4 Weekend donor rebalance
+
         weekendNightDonorRebalanceService.execute(weekStartDate);
 
-        // 5 Summary
+        // 4. FAIRNESS + HOURS SUMMARY (UNCHANGED ✅)
         summaryService.calculateSummary(
                 rosterWeek.getId(),
                 weekStartDate
