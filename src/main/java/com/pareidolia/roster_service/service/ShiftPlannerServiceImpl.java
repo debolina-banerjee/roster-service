@@ -1597,16 +1597,21 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
             }
         }
     }
+    //Commented out to investigate 2 resources disappearance issue
+//    private Set<Integer> getDonorWeekdays(Long weekId) {
+//
+//        int cycle = (int) (weekId % 4);
+//
+//        return switch (cycle) {
+//            case 0 -> Set.of(1, 3); // Mon, Wed
+//            case 1 -> Set.of(2, 4); // Tue, Thu
+//            case 2 -> Set.of(3, 5); // Wed, Fri
+//            default -> Set.of(1, 4); // Mon, Thu
+//        };
+//    }
+
     private Set<Integer> getDonorWeekdays(Long weekId) {
-
-        int cycle = (int) (weekId % 4);
-
-        return switch (cycle) {
-            case 0 -> Set.of(1, 3); // Mon, Wed
-            case 1 -> Set.of(2, 4); // Tue, Thu
-            case 2 -> Set.of(3, 5); // Wed, Fri
-            default -> Set.of(1, 4); // Mon, Thu
-        };
+        return Set.of(4, 5); // Thursday, Friday
     }
     private int getIsoDay(LocalDate date) {
         return date.getDayOfWeek().getValue(); // Mon=1 ... Sun=7
