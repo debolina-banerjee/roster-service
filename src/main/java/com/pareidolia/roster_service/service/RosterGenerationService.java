@@ -43,12 +43,24 @@ public class RosterGenerationService {
         List<RosterDay> days =
                 rosterDayRepository.findByRosterWeekId(rosterWeek.getId());
 
+//        days = days.stream()
+//                .sorted((a, b) -> Integer.compare(
+//                        planningPriority(a.getDayDate().getDayOfWeek().getValue()),
+//                        planningPriority(b.getDayDate().getDayOfWeek().getValue())
+//                ))
+//                .toList();
+
         days = days.stream()
                 .sorted((a, b) -> Integer.compare(
                         planningPriority(a.getDayDate().getDayOfWeek().getValue()),
                         planningPriority(b.getDayDate().getDayOfWeek().getValue())
                 ))
-                .toList();
+                .collect(java.util.stream.Collectors.toList());
+
+// DEBUG ORDER CHECK
+        for (RosterDay d : days) {
+            System.out.println("PLAN ORDER => " + d.getDayDate());
+        }
 
 // 2. Plan shifts (WEEKEND FIRST)
         for (RosterDay day : days) {
