@@ -2,7 +2,6 @@ package com.pareidolia.roster_service.service;
 
 import com.pareidolia.roster_service.entity.*;
 import com.pareidolia.roster_service.enumtype.DayCategory;
-import com.pareidolia.roster_service.enumtype.Gender;
 import com.pareidolia.roster_service.enumtype.ShiftCode;
 import com.pareidolia.roster_service.exception.BusinessRuleException;
 import com.pareidolia.roster_service.repository.*;
@@ -25,6 +24,7 @@ public class WeekendNightDonorRebalanceService {
     private final ShiftConfigRepository shiftConfigRepository;
     private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final ShiftAssignmentService assignmentService;
+    private final EmployeeRepository employeeRepository;
 
     @Transactional
     public void execute(LocalDate weekStartDate) {
@@ -48,24 +48,28 @@ public class WeekendNightDonorRebalanceService {
                         .sorted(Comparator.comparing(RosterDay::getDayDate))
                         .toList();
 
-        int maxDonors = 2;
+        int donorMovesLeft = 2;
 
         for (RosterDay weekendDay : weekends) {
 
-            List<ShiftConfig> configs =
+            List<ShiftConfig> weekendConfigs =
                     shiftConfigRepository
                             .findByRosterWeek_IdAndDayCategoryAndActiveTrue(
                                     week.getId(),
                                     DayCategory.WEEKEND
                             );
 
-            for (ShiftConfig cfg : configs) {
+            for (ShiftConfig cfg : weekendConfigs) {
 
-                if (maxDonors <= 0) return;
+                if (donorMovesLeft <= 0) {
+                    return;
+                }
 
                 ShiftCode targetCode = cfg.getShiftType().getCode();
 
-                if (targetCode == ShiftCode.ON_DUTY) continue;
+                if (targetCode == ShiftCode.ON_DUTY) {
+                    continue;
+                }
 
                 int required = cfg.getRequiredResources();
 
@@ -76,11 +80,13 @@ public class WeekendNightDonorRebalanceService {
                                         targetCode
                                 );
 
-                if (current >= required) continue;
+                if (current >= required) {
+                    continue;
+                }
 
                 int shortage = required - (int) current;
 
-                while (shortage > 0 && maxDonors > 0) {
+                while (shortage > 0 && donorMovesLeft > 0) {
 
                     boolean moved =
                             moveOneDonor(
@@ -89,15 +95,17 @@ public class WeekendNightDonorRebalanceService {
                                     cfg.getShiftType()
                             );
 
-                    if (!moved) break;
+                    if (!moved) {
+                        break;
+                    }
 
                     shortage--;
-                    maxDonors--;
+                    donorMovesLeft--;
                 }
             }
         }
 
-        log.info("Weekend donor rebalance complete");
+        log.info("Weekend donor rebalance completed");
     }
 
     private boolean moveOneDonor(
@@ -108,9 +116,7 @@ public class WeekendNightDonorRebalanceService {
 
         for (RosterDay weekday : weekdays) {
 
-            Employee donor =
-                    findDonor(weekday, ShiftCode.GRAVEYARD);
-
+            Employee donor = findDonor(weekday, ShiftCode.GRAVEYARD);
             ShiftCode donorCode = ShiftCode.GRAVEYARD;
 
             if (donor == null) {
@@ -118,28 +124,48 @@ public class WeekendNightDonorRebalanceService {
                 donorCode = ShiftCode.NIGHT;
             }
 
-            if (donor == null) continue;
+            if (donor == null) {
+                continue;
+            }
 
             try {
 
-                shiftAssignmentRepository
-                        .deleteByEmployeeAndRosterDayAndShiftType_Code(
-                                donor.getId(),
-                                weekday.getId(),
-                                donorCode
-                        );
+                // 🔥 IMPORTANT: skip if already working on this weekend day
+                boolean alreadyAssigned =
+                        shiftAssignmentRepository
+                                .existsByEmployee_IdAndRosterDay_Id(
+                                        donor.getId(),
+                                        weekendDay.getId()
+                                );
 
-                shiftAssignmentRepository.flush();
+                if (alreadyAssigned) {
+                    continue;
+                }
 
+                // 🔥 refetch managed entity
+                Employee managedDonor =
+                        employeeRepository
+                                .findById(donor.getId())
+                                .orElseThrow();
+
+                // 🔥 assign weekend shift first
                 assignmentService.assignDragged(
-                        donor,
+                        managedDonor,
                         weekendDay,
                         weekendShift
                 );
 
+                // 🔥 remove weekday donor shift after success
+                shiftAssignmentRepository
+                        .deleteByEmployeeAndRosterDayAndShiftType_Code(
+                                managedDonor.getId(),
+                                weekday.getId(),
+                                donorCode
+                        );
+
                 log.warn(
-                        "Moved donor emp={} from {} {} -> {} {}",
-                        donor.getEmployeeCode(),
+                        "Donor moved emp={} from {} {} -> {} {}",
+                        managedDonor.getEmployeeCode(),
                         weekday.getDayDate(),
                         donorCode,
                         weekendDay.getDayDate(),
@@ -149,7 +175,10 @@ public class WeekendNightDonorRebalanceService {
                 return true;
 
             } catch (BusinessRuleException ex) {
-                // rollback candidate only
+                log.warn("Donor move blocked: {}", ex.getMessage());
+
+            } catch (Exception ex) {
+                log.error("Donor move failed", ex);
             }
         }
 
