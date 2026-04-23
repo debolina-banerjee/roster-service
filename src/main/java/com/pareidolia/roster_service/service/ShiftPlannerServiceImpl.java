@@ -53,6 +53,13 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 
         Long weekId = rosterDay.getRosterWeek().getId();
 
+
+        //New Addition - 1
+
+        boolean isWeekend =
+                rosterDay.getDayCategory() ==
+                        com.pareidolia.roster_service.enumtype.DayCategory.WEEKEND;
+
         List<ShiftConfig> shiftConfigs =
                 shiftConfigRepository
                         .findByRosterWeek_IdAndDayCategoryAndActiveTrue(
@@ -142,14 +149,46 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                 boolean malePoolTooTight =
                         remainingMalePool <= totalNightFamilyRemaining;
 
-                if (sc != NIGHT && sc != GRAVEYARD
+//                if (sc != NIGHT && sc != GRAVEYARD
+//                        && nightFamilyCritical
+//                        && malePoolTooTight
+//                ) {
+//                    continue;
+//                }
+
+                //Commented from loc 152 - New Addition - 2 - replacement
+
+                if (!isWeekend &&
+                        sc != NIGHT && sc != GRAVEYARD
                         && nightFamilyCritical
-                        && malePoolTooTight
-                ) {
+                        && malePoolTooTight) {
                     continue;
                 }
 
-                if (sc != EVENING && sc != EARLY_MORNING && eveningRemaining > 0) {
+
+
+//                if (sc != EVENING && sc != EARLY_MORNING && eveningRemaining > 0) {
+//
+//                    int safetyBuffer = 0;
+//
+//                    boolean eveningAtRisk =
+//                            (sc != EARLY_MORNING) &&
+//                                    (remainingEmployees <= (eveningRemaining - 1));
+//                    if (eveningAtRisk) {
+//                        continue;
+//                    }
+//                }
+
+                //Commented from line 170 - if condition replaced
+                //New Addition - 3
+
+
+
+
+                if (!isWeekend &&
+                        sc != EVENING &&
+                        sc != EARLY_MORNING &&
+                        eveningRemaining > 0) {
 
                     int safetyBuffer = 0;
 
@@ -186,7 +225,12 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                                 && earlyRemaining > 0
                                 && remainingEmployees <= earlyRemaining);
 
-                if (protectEarly) continue;
+               // if (protectEarly) continue;
+
+                //Commented line no 228 replaced by
+                //New Addition - 4
+
+                if (!isWeekend && protectEarly) continue;
 
                 long weeklyHours =
                         shiftAssignmentRepository.sumWeeklyHours(emp.getId(), weekId);
