@@ -32,10 +32,25 @@ public class RosterGenerationService {
         // 1. Generate weekly offs
         weeklyOffService.generateWeeklyOffs( rosterWeek.getId(),weekStartDate);
 
+//        List<RosterDay> days =
+//                rosterDayRepository.findByRosterWeekId(rosterWeek.getId());
+//
+//        // 2. Plan normal shifts
+//        for (RosterDay day : days) {
+//            shiftPlannerService.planDay(day);
+//        }
+
         List<RosterDay> days =
                 rosterDayRepository.findByRosterWeekId(rosterWeek.getId());
 
-        // 2. Plan normal shifts
+        days = days.stream()
+                .sorted((a, b) -> Integer.compare(
+                        planningPriority(a.getDayDate().getDayOfWeek().getValue()),
+                        planningPriority(b.getDayDate().getDayOfWeek().getValue())
+                ))
+                .toList();
+
+// 2. Plan shifts (WEEKEND FIRST)
         for (RosterDay day : days) {
             shiftPlannerService.planDay(day);
         }
@@ -44,7 +59,7 @@ public class RosterGenerationService {
         onDutyTopupService.fillOnDuty(weekStartDate);
 
 
-        weekendNightDonorRebalanceService.execute(weekStartDate);
+        //weekendNightDonorRebalanceService.execute(weekStartDate);
 
         // 4. FAIRNESS + HOURS SUMMARY (UNCHANGED ✅)
         summaryService.calculateSummary(
@@ -59,5 +74,21 @@ public class RosterGenerationService {
 
     public List<ShiftAssignment> getAssignmentsForWeek(Long weekId) {
         return shiftAssignmentRepository.findByRosterDay_RosterWeek_Id(weekId);
+    }
+
+    private int planningPriority(int dayOfWeek) {
+
+        // Monday=1 ... Sunday=7
+
+        return switch (dayOfWeek) {
+            case 6 -> 1; // Saturday
+            case 7 -> 2; // Sunday
+            case 1 -> 3; // Monday
+            case 2 -> 4; // Tuesday
+            case 3 -> 5; // Wednesday
+            case 4 -> 6; // Thursday
+            case 5 -> 7; // Friday
+            default -> 99;
+        };
     }
 }
