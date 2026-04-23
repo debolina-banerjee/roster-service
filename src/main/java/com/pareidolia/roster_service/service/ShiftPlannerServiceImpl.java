@@ -60,19 +60,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                 rosterDay.getDayCategory() ==
                         com.pareidolia.roster_service.enumtype.DayCategory.WEEKEND;
 
-
-        //Donor rotation change- 1
-
-        Set<Integer> donorDays = getDonorWeekdays(weekId);
-
-        boolean isDonorWeekday =
-                !isWeekend &&
-                        donorDays.contains(getIsoDay(rosterDay.getDayDate()));
-
-        log.info("Donor weekday = {} | date={}",
-                isDonorWeekday,
-                rosterDay.getDayDate());
-
         List<ShiftConfig> shiftConfigs =
                 shiftConfigRepository
                         .findByRosterWeek_IdAndDayCategoryAndActiveTrue(
@@ -116,13 +103,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
             ShiftCode sc = config.getShiftType().getCode();
             int required = config.getRequiredResources();
 
-            //Donor rotation change - 2
-
-
-            if (isDonorWeekday && sc == GRAVEYARD) {
-                required = Math.max(0, required - 1);
-            }
-
             if (required == 0 || sc == ON_DUTY) continue;
 
             for (Employee emp : employees) {
@@ -154,22 +134,8 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                                 .filter(e -> !assignedToday.contains(e.getId()))
                                 .filter(e -> e.getGender() != Gender.FEMALE)
                                 .count();
-//                int nightRemaining =
-//                        getRequired(shiftConfigs, NIGHT)
-//                                - assignedPerShift.getOrDefault(NIGHT, 0);
-
-                //Commented out from loc 153
-                //replaced by
-                //Donor rotation change - 3
-                int dynamicNightRequired = getRequired(shiftConfigs, NIGHT);
-
-//                if (isDonorWeekday) {
-//                    dynamicNightRequired =
-//                            Math.max(0, dynamicNightRequired - 1);
-//                }
-
                 int nightRemaining =
-                        dynamicNightRequired
+                        getRequired(shiftConfigs, NIGHT)
                                 - assignedPerShift.getOrDefault(NIGHT, 0);
 
                 int totalNightFamilyRemaining =
@@ -628,23 +594,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                         day.getId(), GRAVEYARD);
 
         int nightReq = requiredFor(day, NIGHT);
-
-        //Donor rotation change - 4
-
-        boolean isWeekend =
-                day.getDayCategory() ==
-                        com.pareidolia.roster_service.enumtype.DayCategory.WEEKEND;
-
-        Set<Integer> donorDays =
-                getDonorWeekdays(day.getRosterWeek().getId());
-
-        boolean isDonorWeekday =
-                !isWeekend &&
-                        donorDays.contains(getIsoDay(day.getDayDate()));
-//
-//        if (isDonorWeekday) {
-//            nightReq = Math.max(0, nightReq - 1);
-//        }
         int graveReq = requiredFor(day, GRAVEYARD);
 
         int nightGap = nightReq - (int) liveNight;
@@ -666,12 +615,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                             .map(ShiftConfig::getRequiredResources)
                             .orElse(0);
 
-            //Donor rotation change - 5
-
-            if (code == GRAVEYARD  && isDonorWeekday) {
-                required = Math.max(0, required - 1);
-            }
-//ends here
             long current =
                     shiftAssignmentRepository.countByRosterDayAndShiftCode(
                             day.getId(), code);
@@ -1596,25 +1539,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                         ex.getMessage());
             }
         }
-    }
-    //Commented out to investigate 2 resources disappearance issue
-//    private Set<Integer> getDonorWeekdays(Long weekId) {
-//
-//        int cycle = (int) (weekId % 4);
-//
-//        return switch (cycle) {
-//            case 0 -> Set.of(1, 3); // Mon, Wed
-//            case 1 -> Set.of(2, 4); // Tue, Thu
-//            case 2 -> Set.of(3, 5); // Wed, Fri
-//            default -> Set.of(1, 4); // Mon, Thu
-//        };
-//    }
-
-    private Set<Integer> getDonorWeekdays(Long weekId) {
-        return Set.of(4, 5); // Thursday, Friday
-    }
-    private int getIsoDay(LocalDate date) {
-        return date.getDayOfWeek().getValue(); // Mon=1 ... Sun=7
     }
 
 }
