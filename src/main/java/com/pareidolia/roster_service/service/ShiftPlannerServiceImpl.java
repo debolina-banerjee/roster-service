@@ -39,12 +39,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
     private static final List<ShiftCode> PRIORITY =
             List.of( NIGHT,GRAVEYARD,EARLY_MORNING,EVENING,ON_DUTY);
 
-
-    //New Addition - 5
-    private Long donorWeekId = null;
-    private int weekendDonorUsed = 0;
-    private static final int MAX_WEEKEND_DONOR = 2;
-
     @Override
     @Transactional
     public void planDay(RosterDay rosterDay) {
@@ -59,9 +53,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 
         Long weekId = rosterDay.getRosterWeek().getId();
 
-        //New Addition -7
-
-        resetWeekendDonorCounterIfNewWeek(weekId);
 
         //New Addition - 1
 
@@ -167,47 +158,13 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 
                 //Commented from loc 152 - New Addition - 2 - replacement
 
-//                if (!isWeekend &&
-//                        sc != NIGHT && sc != GRAVEYARD
-//                        && nightFamilyCritical
-//                        && malePoolTooTight) {
-//                    continue;
-//                }
-
-                //Commented from loc 170 - to be replaced by
-                //New Additon - 9
-
-
-                boolean donorAllowed =
-                        isWeekend && weekendDonorUsed < MAX_WEEKEND_DONOR;
-
-                //New confusion
-                boolean donorActuallyUsed = false;
-
-//                if (!donorAllowed &&
-//                        sc != NIGHT && sc != GRAVEYARD
-//                        && nightFamilyCritical
-//                        && malePoolTooTight) {
-//                    continue;
-//                }
-
-                //New confusion - 1
-                if (!donorAllowed &&
-                        sc != NIGHT &&
-                        sc != GRAVEYARD &&
-                        nightFamilyCritical &&
-                        malePoolTooTight) {
+                if (!isWeekend &&
+                        sc != NIGHT && sc != GRAVEYARD
+                        && nightFamilyCritical
+                        && malePoolTooTight) {
                     continue;
                 }
 
-                if (donorAllowed &&
-                        sc != NIGHT &&
-                        sc != GRAVEYARD &&
-                        nightFamilyCritical &&
-                        malePoolTooTight) {
-
-                    donorActuallyUsed = true;
-                }
 
 
 //                if (sc != EVENING && sc != EARLY_MORNING && eveningRemaining > 0) {
@@ -268,7 +225,7 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                                 && earlyRemaining > 0
                                 && remainingEmployees <= earlyRemaining);
 
-               // if (protectEarly) continue;
+                // if (protectEarly) continue;
 
                 //Commented line no 228 replaced by
                 //New Addition - 4
@@ -389,28 +346,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 
                     assignedToday.add(emp.getId());
                     assignedPerShift.put(sc, current + 1);
-
-                    //New Addition - 8
-
-                    // WEEKEND DONOR CONSUMPTION
-//                    if (isWeekend &&
-//                            (sc == EARLY_MORNING || sc == EVENING) &&
-//                            weekendDonorUsed < MAX_WEEKEND_DONOR) {
-//
-//                        weekendDonorUsed++;
-//                    }
-
-//                    if (donorAllowed &&
-//                            (sc == EARLY_MORNING || sc == EVENING)) {
-//
-//                        weekendDonorUsed++;
-//                    }
-
-                    if (donorActuallyUsed &&
-                            (sc == EARLY_MORNING || sc == EVENING)) {
-
-                        weekendDonorUsed++;
-                    }
 
                 } catch (BusinessRuleException ex) {
                     log.debug("Assignment blocked → emp={} shift={} reason={}",
@@ -546,14 +481,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
         }
     }
 
-    //New Addition - 6 - method to be called inside planDay()
-    private void resetWeekendDonorCounterIfNewWeek(Long weekId) {
-
-        if (donorWeekId == null || !donorWeekId.equals(weekId)) {
-            donorWeekId = weekId;
-            weekendDonorUsed = 0;
-        }
-    }
     // =====================================================
     // EARLY RECOVERY — PREVIOUS DAY EVENING
     // =====================================================
