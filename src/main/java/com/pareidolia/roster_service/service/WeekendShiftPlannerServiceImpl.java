@@ -37,7 +37,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
     private final WeeklyOffRepository weeklyOffRepository;
 
     private static final List<ShiftCode> PRIORITY =
-            List.of(EARLY_MORNING, EVENING, GRAVEYARD, NIGHT, ON_DUTY);
+            List.of(EARLY_MORNING, EVENING, NIGHT,GRAVEYARD,ON_DUTY);
 
     @Override
     @Transactional
@@ -355,14 +355,13 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
         }
         performEarlyRecovery(rosterDay, assignedToday);
         performNightRecovery(rosterDay, assignedToday);
-        // Early first
-        performFinalBackfillEveningFirst(rosterDay, employees, assignedToday); // Evening priority fill
-        performEveningLastRescue(rosterDay, assignedToday);       // last safety
 
-        //performOnDutyBackfill(rosterDay, employees, assignedToday);
-        //performFinalSafetySweep(rosterDay, employees,assignedToday);
+        performFinalBackfillEveningFirst(rosterDay, employees, assignedToday);
+
         performCrossShiftRebalance(rosterDay, assignedToday);
-        //performCriticalGraveyardFill( rosterDay, assignedToday);
+
+        performEveningLastRescue(rosterDay, assignedToday);
+
         performOnDutyBackfill(rosterDay, employees, assignedToday);
 
     }
@@ -570,129 +569,34 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
     }
     // =====================================================
-    // NIGHT RECOVERY — FIXED
-    // =====================================================
     private void performNightRecovery(RosterDay day, Set<Long> assignedToday) {
 
-//        List<ShiftCode> nightOrder =
-//                (day.getDayDate().getDayOfWeek().getValue() % 2 == 0)
-//                        ? List.of(GRAVEYARD, NIGHT)
-//                        : List.of(NIGHT, GRAVEYARD);
-
-//        List<ShiftCode> nightOrder =
-//                (requiredFor(day, GRAVEYARD) > requiredFor(day, NIGHT))
-//                        ? List.of(GRAVEYARD, NIGHT)
-//                        : List.of(NIGHT, GRAVEYARD);
-
-
-        long liveNight =
-                shiftAssignmentRepository.countByRosterDayAndShiftCode(
-                        day.getId(), NIGHT);
-
-        long liveGrave =
-                shiftAssignmentRepository.countByRosterDayAndShiftCode(
-                        day.getId(), GRAVEYARD);
-
-        int nightReq = requiredFor(day, NIGHT);
-        int graveReq = requiredFor(day, GRAVEYARD);
-
-        int nightGap = nightReq - (int) liveNight;
-        int graveGap = graveReq - (int) liveGrave;
-
         List<ShiftCode> nightOrder =
-                (graveGap > nightGap)
-                        ? List.of(GRAVEYARD, NIGHT)
-                        : List.of(NIGHT, GRAVEYARD);
+                List.of(NIGHT, GRAVEYARD);
 
-        for (ShiftCode code : nightOrder){
+        for (ShiftCode code : nightOrder) {
 
-            int required =
-                    shiftConfigRepository
-                            .findByRosterWeek_IdAndDayCategoryAndShiftType_Code(
-                                    day.getRosterWeek().getId(),
-                                    day.getDayCategory(),
-                                    code)
-                            .map(ShiftConfig::getRequiredResources)
-                            .orElse(0);
+            int required = requiredFor(day, code);
 
             long current =
                     shiftAssignmentRepository.countByRosterDayAndShiftCode(
                             day.getId(), code);
 
+            if (current >= required) continue;
+
             ShiftCode sibling =
                     (code == NIGHT) ? GRAVEYARD : NIGHT;
 
-            int siblingRequired =
-                    shiftConfigRepository
-                            .findByRosterWeek_IdAndDayCategoryAndShiftType_Code(
-                                    day.getRosterWeek().getId(),
-                                    day.getDayCategory(),
-                                    sibling)
-                            .map(ShiftConfig::getRequiredResources)
-                            .orElse(0);
-
-            long siblingCurrent =
-                    shiftAssignmentRepository.countByRosterDayAndShiftCode(
-                            day.getId(),
-                            sibling);
-
-            if (current >= required) continue;
+            int siblingRequired = requiredFor(day, sibling);
 
             List<Employee> candidates =
                     employeeRepository.findActiveNotOnLeave(day.getDayDate())
                             .stream()
                             .filter(e -> !assignedToday.contains(e.getId()))
                             .filter(e -> e.getGender() != Gender.FEMALE)
-
-                            // ⭐ GRAVEYARD SHORTAGE OVERRIDE
-                            .filter(e -> {
-
-                                if (code != GRAVEYARD) {
-                                    return true;
-                                }
-
-                                long graveCurrent =
-                                        shiftAssignmentRepository.countByRosterDayAndShiftCode(
-                                                day.getId(), GRAVEYARD);
-
-                                int graveRequired =
-                                        requiredFor(day, GRAVEYARD);
-
-                                long recentGraveyards =
-                                        shiftAssignmentRepository.countRecentShiftType(
-                                                e.getId(),
-                                                GRAVEYARD,
-                                                day.getDayDate(),
-                                                day.getDayDate().minusDays(7)
-                                        );
-
-                                boolean lastSlot = graveCurrent >= graveRequired - 1;
-
-                                boolean hadRecentWO =
-                                        weeklyOffRepository.existsByEmployee_IdAndOffDateBetween(
-                                                e.getId(),
-                                                day.getDayDate().minusDays(3),
-                                                day.getDayDate().minusDays(1)
-                                        );
-
-                                boolean criticalShortage =
-                                        graveCurrent < graveRequired;
-
-                                if (recentGraveyards >= 3 && !hadRecentWO && !criticalShortage) {
-                                    return false;
-                                }
-
-                                return true;
-                            })
                             .sorted(
                                     Comparator
                                             .comparingLong((Employee e) ->
-                                                    shiftAssignmentRepository.countRecentShiftType(
-                                                            e.getId(),
-                                                            code,
-                                                            day.getDayDate(),
-                                                            day.getDayDate().minusDays(21)))
-                                            .thenComparingLong(e ->
                                                     shiftAssignmentRepository.sumWeeklyHours(
                                                             e.getId(),
                                                             day.getRosterWeek().getId()))
@@ -704,26 +608,35 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                 if (current >= required) break;
 
                 try {
-                    RosterContext ctx =
-                            contextBuilder.build(e, day, getShiftType(day, code))
-                                    .toBuilder()
-                                    .draggedOverride(true)
-                                    .build();
 
-                    // 🚨 CROSS-NIGHT PROTECTION (CRITICAL)
+                    // ===== NIGHT PROTECTION =====
                     if (code == NIGHT) {
 
-                        long liveSiblingCurrent =
+                        long liveGrave =
                                 shiftAssignmentRepository.countByRosterDayAndShiftCode(
-                                        day.getId(),
-                                        sibling);
+                                        day.getId(), GRAVEYARD);
 
-                        if (liveSiblingCurrent < (siblingRequired - 1)) {
+                        // block only if graveyard fully empty
+                        if (liveGrave == 0 && siblingRequired > 2) {
                             continue;
                         }
                     }
 
-                    // 🚨 HARD CAP — prevents night/graveyard overfill
+                    // ===== GRAVEYARD PROTECTION =====
+                    if (code == GRAVEYARD) {
+
+                        long liveNight =
+                                shiftAssignmentRepository.countByRosterDayAndShiftCode(
+                                        day.getId(), NIGHT);
+
+                        int nightRequired = requiredFor(day, NIGHT);
+
+                        // secure Night first
+                        if (liveNight < nightRequired) {
+                            continue;
+                        }
+                    }
+
                     long liveCurrent =
                             shiftAssignmentRepository.countByRosterDayAndShiftCode(
                                     day.getId(), code);
@@ -732,102 +645,50 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                         break;
                     }
 
-                    // 🚨 SMART CROSS-NIGHT PROTECTION (CRITICAL)
-                    if (code == GRAVEYARD) {
-
-                        long liveNightCurrent =
-                                shiftAssignmentRepository.countByRosterDayAndShiftCode(
-                                        day.getId(), NIGHT);
-
-                        int nightRequired = requiredFor(day, NIGHT);
-
-                        // only protect night if it is still missing
-                        if (liveNightCurrent < nightRequired) {
-                            continue;
-                        }
-
-                        int graveRequired =
-                                shiftConfigRepository
-                                        .findByRosterWeek_IdAndDayCategoryAndShiftType_Code(
-                                                day.getRosterWeek().getId(),
-                                                day.getDayCategory(),
-                                                GRAVEYARD)
-                                        .map(ShiftConfig::getRequiredResources)
-                                        .orElse(0);
-
-                        // Allow graveyard priority if graveyard demand is higher
-                        if (graveRequired <= nightRequired && liveNightCurrent < nightRequired) {
-                            continue;
-                        }
-                    }
-                    long liveNow =
-                            shiftAssignmentRepository.countByRosterDayAndShiftCode(
-                                    day.getId(), code);
-
-                    if (liveNow >= required) {
-                        break;
-                    }
+                    RosterContext ctx =
+                            contextBuilder.build(
+                                            e,
+                                            day,
+                                            getShiftType(day, code))
+                                    .toBuilder()
+                                    .draggedOverride(true)
+                                    .build();
 
                     validationService.validateHard(ctx);
                     assignmentService.assign(ctx);
 
-                    // ⭐⭐⭐ FIX #3 — missing earlier
                     assignedToday.add(e.getId());
-                    // current++;
 
                     current =
-                            (int) shiftAssignmentRepository.countByRosterDayAndShiftCode(
-                                    day.getId(),
-                                    code
-                            );
-//                    current =
-//                            shiftAssignmentRepository.countByRosterDayAndShiftCode(
-//                                    day.getId(),
-//                                    code);
+                            shiftAssignmentRepository.countByRosterDayAndShiftCode(
+                                    day.getId(), code);
 
                 } catch (BusinessRuleException ignored) {
                 }
             }
 
-            // ================= HARD FALLBACK =================
+            // ===== FALLBACK =====
             if (current < required) {
 
-                List<Employee> desperatePool =
+                List<Employee> fallback =
                         employeeRepository.findActiveNotOnLeave(day.getDayDate())
                                 .stream()
-                                .filter(e -> e.getGender() != Gender.FEMALE)
                                 .filter(e -> !assignedToday.contains(e.getId()))
-                                .sorted(Comparator.comparingLong(
-                                        e -> shiftAssignmentRepository.sumWeeklyHours(
-                                                e.getId(),
-                                                day.getRosterWeek().getId())))
+                                .filter(e -> e.getGender() != Gender.FEMALE)
+                                .sorted(
+                                        Comparator.comparingLong(
+                                                e -> shiftAssignmentRepository.sumWeeklyHours(
+                                                        e.getId(),
+                                                        day.getRosterWeek().getId()))
+                                )
                                 .toList();
 
-                for (Employee e : desperatePool) {
+                for (Employee e : fallback) {
 
                     if (current >= required) break;
 
                     try {
-                        RosterContext ctx =
-                                contextBuilder.build(e, day, getShiftType(day, code))
-                                        .toBuilder()
-                                        .draggedOverride(true)
-                                        .build();
 
-                        // 🚨 CROSS-NIGHT PROTECTION — ALSO IN FALLBACK
-                        if (code == NIGHT) {
-
-                            long liveSiblingCurrent =
-                                    shiftAssignmentRepository.countByRosterDayAndShiftCode(
-                                            day.getId(),
-                                            sibling);
-
-                            if (liveSiblingCurrent < (siblingRequired - 1)) {
-                                continue;
-                            }
-                        }
-
-                        // 🚨 HARD CAP — prevents overfill in fallback
                         long liveCurrent =
                                 shiftAssignmentRepository.countByRosterDayAndShiftCode(
                                         day.getId(), code);
@@ -836,56 +697,23 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                             break;
                         }
 
-                        // 🚨 SYMMETRIC CROSS-NIGHT PROTECTION (NEW — critical)
-                        // 🚨 SMART CROSS-NIGHT PROTECTION
-                        if (code == GRAVEYARD) {
-
-                            long liveNightCurrent =
-                                    shiftAssignmentRepository.countByRosterDayAndShiftCode(
-                                            day.getId(), NIGHT);
-
-                            int nightRequired =
-                                    shiftConfigRepository
-                                            .findByRosterWeek_IdAndDayCategoryAndShiftType_Code(
-                                                    day.getRosterWeek().getId(),
-                                                    day.getDayCategory(),
-                                                    NIGHT)
-                                            .map(ShiftConfig::getRequiredResources)
-                                            .orElse(0);
-
-                            int graveRequired =
-                                    shiftConfigRepository
-                                            .findByRosterWeek_IdAndDayCategoryAndShiftType_Code(
-                                                    day.getRosterWeek().getId(),
-                                                    day.getDayCategory(),
-                                                    GRAVEYARD)
-                                            .map(ShiftConfig::getRequiredResources)
-                                            .orElse(0);
-
-                            if (graveRequired <= nightRequired && liveNightCurrent < nightRequired) {
-                                continue;
-                            }
-                        }
+                        RosterContext ctx =
+                                contextBuilder.build(
+                                                e,
+                                                day,
+                                                getShiftType(day, code))
+                                        .toBuilder()
+                                        .draggedOverride(true)
+                                        .build();
 
                         validationService.validateHard(ctx);
                         assignmentService.assign(ctx);
 
                         assignedToday.add(e.getId());
-                        //current++;
 
                         current =
-                                (int) shiftAssignmentRepository.countByRosterDayAndShiftCode(
-                                        day.getId(),
-                                        code
-                                );
-
-//                        current =
-//                                shiftAssignmentRepository.countByRosterDayAndShiftCode(
-//                                        day.getId(),
-//                                        code);
-
-                        log.warn("🔥 Night hard fallback used for emp={} shift={}",
-                                e.getEmployeeCode(), code);
+                                shiftAssignmentRepository.countByRosterDayAndShiftCode(
+                                        day.getId(), code);
 
                     } catch (Exception ignored) {
                     }
@@ -1027,14 +855,24 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
         int eveningReq = requiredFor(day, EVENING);
         long eveningNow =
                 shiftAssignmentRepository.countByRosterDayAndShiftCode(day.getId(), EVENING);
+//
+//        if (graveNow < graveReq || earlyNow < earlyReq || eveningNow < eveningReq) {
+//            return;
+//        }
 
-        if (graveNow < graveReq || earlyNow < earlyReq || eveningNow < eveningReq) {
+        int nightReq = requiredFor(day, NIGHT);
+
+        long nightNow =
+                shiftAssignmentRepository.countByRosterDayAndShiftCode(day.getId(), NIGHT);
+
+        if (graveNow < graveReq ||
+                earlyNow < earlyReq ||
+                eveningNow < eveningReq ||
+                nightNow < nightReq) {
             return;
         }
 
-        int nightReq = requiredFor(day, NIGHT);
-        long nightNow =
-                shiftAssignmentRepository.countByRosterDayAndShiftCode(day.getId(), NIGHT);
+
 
         int remainingEmployees =
                 employees.size() - assignedToday.size();
@@ -1260,13 +1098,13 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
             List<ShiftConfig> donorOrder = new ArrayList<>(configs);
 
             // prioritize EVENING for GRAVEYARD
-            if (targetCode == GRAVEYARD) {
-                donorOrder.sort((a, b) -> {
-                    if (a.getShiftType().getCode() == EVENING) return -1;
-                    if (b.getShiftType().getCode() == EVENING) return 1;
-                    return 0;
-                });
-            }
+//            if (targetCode == GRAVEYARD) {
+//                donorOrder.sort((a, b) -> {
+//                    if (a.getShiftType().getCode() == EVENING) return -1;
+//                    if (b.getShiftType().getCode() == EVENING) return 1;
+//                    return 0;
+//                });
+//            }
 
             for (ShiftConfig donorCfg : donorOrder) {
 
@@ -1288,8 +1126,10 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
                 //int surplus = (int) donorCurrent - donorRequired;
 
-                boolean canBorrowFromEvening =
-                        (targetCode == GRAVEYARD && donorCode == EVENING);
+//                boolean canBorrowFromEvening =
+//                        (targetCode == GRAVEYARD && donorCode == EVENING);
+
+                boolean canBorrowFromEvening = false;
 
                 // 🔥 EVENING IS ALWAYS A DONOR POOL
                 if (!canBorrowFromEvening) {
