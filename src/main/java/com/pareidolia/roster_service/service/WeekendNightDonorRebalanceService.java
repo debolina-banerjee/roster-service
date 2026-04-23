@@ -1,20 +1,11 @@
 package com.pareidolia.roster_service.service;
 
-import com.pareidolia.roster_service.entity.Employee;
-import com.pareidolia.roster_service.entity.RosterDay;
-import com.pareidolia.roster_service.entity.RosterWeek;
-import com.pareidolia.roster_service.entity.ShiftConfig;
-import com.pareidolia.roster_service.entity.ShiftType;
+import com.pareidolia.roster_service.entity.*;
 import com.pareidolia.roster_service.enumtype.DayCategory;
 import com.pareidolia.roster_service.enumtype.Gender;
 import com.pareidolia.roster_service.enumtype.ShiftCode;
 import com.pareidolia.roster_service.exception.BusinessRuleException;
-import com.pareidolia.roster_service.repository.EmployeeRepository;
-import com.pareidolia.roster_service.repository.RosterDayRepository;
-import com.pareidolia.roster_service.repository.RosterWeekRepository;
-import com.pareidolia.roster_service.repository.ShiftAssignmentRepository;
-import com.pareidolia.roster_service.repository.ShiftConfigRepository;
-import com.pareidolia.roster_service.repository.ShiftTypeRepository;
+import com.pareidolia.roster_service.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -33,170 +24,151 @@ public class WeekendNightDonorRebalanceService {
     private final RosterDayRepository rosterDayRepository;
     private final ShiftConfigRepository shiftConfigRepository;
     private final ShiftAssignmentRepository shiftAssignmentRepository;
-    private final ShiftTypeRepository shiftTypeRepository;
-    private final EmployeeRepository employeeRepository;
     private final ShiftAssignmentService assignmentService;
 
-    /**
-     * Business rule:
-     * Existing planner remains untouched.
-     * Existing evening drag remains untouched.
-     *
-     * After planner completes:
-     * - Weekend cannot remain short.
-     * - Use max 2 donor resources across the week.
-     * - Donor concept comes from weekday NIGHT + GRAVEYARD capacity.
-     *
-     * Option A:
-     * We DO NOT delete weekday assignments.
-     * We only use approved donor allowance to fill weekend shortages.
-     */
     @Transactional
     public void execute(LocalDate weekStartDate) {
 
         RosterWeek week =
                 rosterWeekRepository.findByWeekStartDate(weekStartDate)
-                        .orElseThrow(() ->
-                                new RuntimeException("Roster week not found"));
+                        .orElseThrow();
 
-        List<RosterDay> weekendDays =
-                rosterDayRepository.findByRosterWeekId(week.getId())
-                        .stream()
+        List<RosterDay> allDays =
+                rosterDayRepository.findByRosterWeekId(week.getId());
+
+        List<RosterDay> weekdays =
+                allDays.stream()
+                        .filter(d -> d.getDayCategory() == DayCategory.WEEKDAY)
+                        .sorted(Comparator.comparing(RosterDay::getDayDate))
+                        .toList();
+
+        List<RosterDay> weekends =
+                allDays.stream()
                         .filter(d -> d.getDayCategory() == DayCategory.WEEKEND)
                         .sorted(Comparator.comparing(RosterDay::getDayDate))
                         .toList();
 
-        if (weekendDays.isEmpty()) {
-            return;
-        }
+        int maxDonors = 2;
 
-        int donorPool = 2; // fixed approved manpower buffer
+        for (RosterDay weekendDay : weekends) {
 
-        for (RosterDay day : weekendDays) {
+            List<ShiftConfig> configs =
+                    shiftConfigRepository
+                            .findByRosterWeek_IdAndDayCategoryAndActiveTrue(
+                                    week.getId(),
+                                    DayCategory.WEEKEND
+                            );
 
-            if (donorPool <= 0) {
-                break;
-            }
+            for (ShiftConfig cfg : configs) {
 
-            donorPool = fillWeekendDay(day, donorPool);
-        }
+                if (maxDonors <= 0) return;
 
-        log.info("WeekendNightDonorRebalance complete | week={} | remainingDonors={}",
-                weekStartDate, donorPool);
-    }
+                ShiftCode targetCode = cfg.getShiftType().getCode();
 
-    private int fillWeekendDay(RosterDay day, int donorPool) {
+                if (targetCode == ShiftCode.ON_DUTY) continue;
 
-        List<ShiftConfig> configs =
-                shiftConfigRepository
-                        .findByRosterWeek_IdAndDayCategoryAndActiveTrue(
-                                day.getRosterWeek().getId(),
-                                DayCategory.WEEKEND
-                        );
+                int required = cfg.getRequiredResources();
 
-        for (ShiftConfig cfg : configs) {
+                long current =
+                        shiftAssignmentRepository
+                                .countByRosterDayAndShiftCode(
+                                        weekendDay.getId(),
+                                        targetCode
+                                );
 
-            if (donorPool <= 0) {
-                break;
-            }
+                if (current >= required) continue;
 
-            ShiftCode code = cfg.getShiftType().getCode();
+                int shortage = required - (int) current;
 
-            if (code == ShiftCode.ON_DUTY) {
-                continue;
-            }
+                while (shortage > 0 && maxDonors > 0) {
 
-            int required = cfg.getRequiredResources();
+                    boolean moved =
+                            moveOneDonor(
+                                    weekdays,
+                                    weekendDay,
+                                    cfg.getShiftType()
+                            );
 
-            long current =
-                    shiftAssignmentRepository.countByRosterDayAndShiftCode(
-                            day.getId(),
-                            code
-                    );
+                    if (!moved) break;
 
-            if (current >= required) {
-                continue;
-            }
-
-            int shortage = required - (int) current;
-
-            while (shortage > 0 && donorPool > 0) {
-
-                boolean filled = assignOneWeekendResource(day, cfg.getShiftType());
-
-                if (!filled) {
-                    break;
+                    shortage--;
+                    maxDonors--;
                 }
-
-                shortage--;
-                donorPool--;
             }
         }
 
-        return donorPool;
+        log.info("Weekend donor rebalance complete");
     }
 
-    private boolean assignOneWeekendResource(
-            RosterDay day,
-            ShiftType targetShiftType
+    private boolean moveOneDonor(
+            List<RosterDay> weekdays,
+            RosterDay weekendDay,
+            ShiftType weekendShift
     ) {
 
-        ShiftCode targetCode = targetShiftType.getCode();
+        for (RosterDay weekday : weekdays) {
 
-        List<Employee> pool =
-                employeeRepository.findActiveNotOnLeave(day.getDayDate())
-                        .stream()
+            Employee donor =
+                    findDonor(weekday, ShiftCode.GRAVEYARD);
 
-                        // must not already be assigned that day
-                        .filter(e ->
-                                !shiftAssignmentRepository
-                                        .existsByEmployee_IdAndRosterDay_Id(
-                                                e.getId(),
-                                                day.getId()
-                                        )
-                        )
+            ShiftCode donorCode = ShiftCode.GRAVEYARD;
 
-                        // females blocked from NIGHT / GRAVEYARD
-                        .filter(e -> {
+            if (donor == null) {
+                donor = findDonor(weekday, ShiftCode.NIGHT);
+                donorCode = ShiftCode.NIGHT;
+            }
 
-                            if (targetCode == ShiftCode.NIGHT ||
-                                    targetCode == ShiftCode.GRAVEYARD) {
-                                return e.getGender() != Gender.FEMALE;
-                            }
-
-                            return true;
-                        })
-
-                        // lowest weekly hours first
-                        .sorted(Comparator.comparingLong(
-                                e -> shiftAssignmentRepository.sumWeeklyHours(
-                                        e.getId(),
-                                        day.getRosterWeek().getId()
-                                )
-                        ))
-                        .toList();
-
-        for (Employee emp : pool) {
+            if (donor == null) continue;
 
             try {
 
+                shiftAssignmentRepository
+                        .deleteByEmployeeAndRosterDayAndShiftType_Code(
+                                donor.getId(),
+                                weekday.getId(),
+                                donorCode
+                        );
+
+                shiftAssignmentRepository.flush();
+
                 assignmentService.assignDragged(
-                        emp,
-                        day,
-                        targetShiftType
+                        donor,
+                        weekendDay,
+                        weekendShift
                 );
 
-                log.warn("Weekend donor used | date={} | emp={} | shift={}",
-                        day.getDayDate(),
-                        emp.getEmployeeCode(),
-                        targetCode);
+                log.warn(
+                        "Moved donor emp={} from {} {} -> {} {}",
+                        donor.getEmployeeCode(),
+                        weekday.getDayDate(),
+                        donorCode,
+                        weekendDay.getDayDate(),
+                        weekendShift.getCode()
+                );
 
                 return true;
 
-            } catch (BusinessRuleException ignored) {
+            } catch (BusinessRuleException ex) {
+                // rollback candidate only
             }
         }
 
         return false;
+    }
+
+    private Employee findDonor(
+            RosterDay day,
+            ShiftCode code
+    ) {
+
+        return shiftAssignmentRepository
+                .findEmployeesByShiftCodeAndDate(
+                        code,
+                        day.getDayDate()
+                )
+                .stream()
+                .sorted(Comparator.comparingLong(Employee::getId))
+                .findFirst()
+                .orElse(null);
     }
 }

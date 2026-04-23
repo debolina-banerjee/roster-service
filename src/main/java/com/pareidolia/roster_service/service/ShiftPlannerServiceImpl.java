@@ -39,10 +39,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
     private static final List<ShiftCode> PRIORITY =
             List.of( NIGHT,GRAVEYARD,EARLY_MORNING,EVENING,ON_DUTY);
 
-    private Long donorWeekId = null;
-    private int weekdayNightDonorUsed = 0;
-    private static final int MAX_WEEKDAY_DONOR = 2;
-
     @Override
     @Transactional
     public void planDay(RosterDay rosterDay) {
@@ -56,8 +52,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
             return;
 
         Long weekId = rosterDay.getRosterWeek().getId();
-
-        resetDonorCounterIfNewWeek(weekId);
 
         List<ShiftConfig> shiftConfigs =
                 shiftConfigRepository
@@ -96,34 +90,11 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
         int eveningRequired = getRequired(shiftConfigs, EVENING);
         int graveyardRequired = getRequired(shiftConfigs, GRAVEYARD);
 
-
-
         // ================= PASS 1 =================
         for (ShiftConfig config : shiftConfigs) {
 
-//            ShiftCode sc = config.getShiftType().getCode();
-//            int required = config.getRequiredResources();
-//
-//            if (required == 0 || sc == ON_DUTY) continue;
-
-
             ShiftCode sc = config.getShiftType().getCode();
             int required = config.getRequiredResources();
-
-            if (canUseWeekdayDonor(rosterDay)
-                    && (sc == NIGHT || sc == GRAVEYARD)) {
-
-                int totalNightFamily =
-                        getRequired(shiftConfigs, NIGHT)
-                                + getRequired(shiftConfigs, GRAVEYARD);
-
-                if (totalNightFamily == 8) {
-
-                    if (sc == GRAVEYARD && required > 0) {
-                        required = required - 1;
-                    }
-                }
-            }
 
             if (required == 0 || sc == ON_DUTY) continue;
 
@@ -338,33 +309,8 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                 }
             }
         }
-
-        if (canUseWeekdayDonor(rosterDay)) {
-
-            long nightNow =
-                    shiftAssignmentRepository.countByRosterDayAndShiftCode(
-                            rosterDay.getId(), NIGHT);
-
-            long graveNow =
-                    shiftAssignmentRepository.countByRosterDayAndShiftCode(
-                            rosterDay.getId(), GRAVEYARD);
-
-            int normalNeed =
-                    getRequired(shiftConfigs, NIGHT)
-                            + getRequired(shiftConfigs, GRAVEYARD);
-
-            if ((nightNow + graveNow) <= (normalNeed - 1)) {
-                //weekdayNightDonorUsed++;
-                if (weekdayNightDonorUsed < MAX_WEEKDAY_DONOR) {
-                    weekdayNightDonorUsed++;
-                }
-            }
-        }
         performEarlyRecovery(rosterDay, assignedToday);
-        //performNightRecovery(rosterDay, assignedToday);
-        if (!isDonorWeekdayApplied(rosterDay, shiftConfigs)) {
-            performNightRecovery(rosterDay, assignedToday);
-        }
+        performNightRecovery(rosterDay, assignedToday);
         // Early first
         performFinalBackfillEveningFirst(rosterDay, employees, assignedToday); // Evening priority fill
         performEveningLastRescue(rosterDay, assignedToday);       // last safety
@@ -373,7 +319,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
         //performFinalSafetySweep(rosterDay, employees,assignedToday);
         performCrossShiftRebalance(rosterDay, assignedToday);
         performCriticalGraveyardFill( rosterDay, assignedToday);
-        performWeekendEarlyFinalRescue(rosterDay, assignedToday);
         performOnDutyBackfill(rosterDay, employees, assignedToday);
 
     }
@@ -488,89 +433,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 
                 } catch (BusinessRuleException ignored) {
                 }
-            }
-        }
-    }
-
-
-    private void performWeekendEarlyFinalRescue(
-            RosterDay day,
-            Set<Long> assignedToday) {
-
-        // Only Saturday / Sunday
-        if (day.getDayCategory() !=
-                com.pareidolia.roster_service.enumtype.DayCategory.WEEKEND) {
-            return;
-        }
-
-        int required = requiredFor(day, EARLY_MORNING);
-
-        long current =
-                shiftAssignmentRepository.countByRosterDayAndShiftCode(
-                        day.getId(),
-                        EARLY_MORNING
-                );
-
-        if (current >= required) {
-            return;
-        }
-
-        int shortage = required - (int) current;
-
-        log.warn("🔥 WEEKEND EARLY FINAL RESCUE triggered | date={} shortage={}",
-                day.getDayDate(),
-                shortage);
-
-        ShiftType earlyType = getShiftType(day, EARLY_MORNING);
-
-        List<Employee> candidates =
-                employeeRepository.findActiveNotOnLeave(day.getDayDate())
-                        .stream()
-
-                        // not already assigned in memory
-                        .filter(e -> !assignedToday.contains(e.getId()))
-
-                        // not already assigned in DB
-                        .filter(e ->
-                                !shiftAssignmentRepository
-                                        .existsByEmployee_IdAndRosterDay_Id(
-                                                e.getId(),
-                                                day.getId()
-                                        ))
-
-                        // lowest weekly hours first
-                        .sorted(Comparator.comparingLong(
-                                e -> shiftAssignmentRepository.sumWeeklyHours(
-                                        e.getId(),
-                                        day.getRosterWeek().getId()
-                                )
-                        ))
-                        .toList();
-
-        for (Employee e : candidates) {
-
-            if (shortage <= 0) {
-                break;
-            }
-
-            try {
-
-                RosterContext ctx =
-                        contextBuilder.build(e, day, earlyType)
-                                .toBuilder()
-                                .draggedOverride(true)
-                                .build();
-
-                validationService.validateHard(ctx);
-                assignmentService.assign(ctx);
-
-                assignedToday.add(e.getId());
-                shortage--;
-
-                log.warn("✅ Weekend Early rescued using emp={}",
-                        e.getEmployeeCode());
-
-            } catch (BusinessRuleException ignored) {
             }
         }
     }
@@ -1633,39 +1495,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                         ex.getMessage());
             }
         }
-    }
-
-    private void resetDonorCounterIfNewWeek(Long weekId) {
-        if (donorWeekId == null || !donorWeekId.equals(weekId)) {
-            donorWeekId = weekId;
-            weekdayNightDonorUsed = 0;
-        }
-    }
-
-    private boolean canUseWeekdayDonor(RosterDay day) {
-        return day.getDayCategory() ==
-                com.pareidolia.roster_service.enumtype.DayCategory.WEEKDAY
-                && weekdayNightDonorUsed < MAX_WEEKDAY_DONOR;
-    }
-
-    private boolean isDonorWeekdayApplied(
-            RosterDay day,
-            List<ShiftConfig> shiftConfigs) {
-
-        if (day.getDayCategory() !=
-                com.pareidolia.roster_service.enumtype.DayCategory.WEEKDAY) {
-            return false;
-        }
-
-        long total =
-                shiftAssignmentRepository.countByRosterDayAndShiftCode(day.getId(), NIGHT)
-                        + shiftAssignmentRepository.countByRosterDayAndShiftCode(day.getId(), GRAVEYARD);
-
-        int normalNeed =
-                getRequired(shiftConfigs, NIGHT)
-                        + getRequired(shiftConfigs, GRAVEYARD);
-
-        return total <= normalNeed - 1;
     }
 
 }
