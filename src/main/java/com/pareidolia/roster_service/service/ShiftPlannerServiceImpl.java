@@ -373,6 +373,7 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
         //performFinalSafetySweep(rosterDay, employees,assignedToday);
         performCrossShiftRebalance(rosterDay, assignedToday);
         performCriticalGraveyardFill( rosterDay, assignedToday);
+        performWeekendEarlyFinalRescue(rosterDay, assignedToday);
         performOnDutyBackfill(rosterDay, employees, assignedToday);
 
     }
@@ -487,6 +488,89 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 
                 } catch (BusinessRuleException ignored) {
                 }
+            }
+        }
+    }
+
+
+    private void performWeekendEarlyFinalRescue(
+            RosterDay day,
+            Set<Long> assignedToday) {
+
+        // Only Saturday / Sunday
+        if (day.getDayCategory() !=
+                com.pareidolia.roster_service.enumtype.DayCategory.WEEKEND) {
+            return;
+        }
+
+        int required = requiredFor(day, EARLY_MORNING);
+
+        long current =
+                shiftAssignmentRepository.countByRosterDayAndShiftCode(
+                        day.getId(),
+                        EARLY_MORNING
+                );
+
+        if (current >= required) {
+            return;
+        }
+
+        int shortage = required - (int) current;
+
+        log.warn("🔥 WEEKEND EARLY FINAL RESCUE triggered | date={} shortage={}",
+                day.getDayDate(),
+                shortage);
+
+        ShiftType earlyType = getShiftType(day, EARLY_MORNING);
+
+        List<Employee> candidates =
+                employeeRepository.findActiveNotOnLeave(day.getDayDate())
+                        .stream()
+
+                        // not already assigned in memory
+                        .filter(e -> !assignedToday.contains(e.getId()))
+
+                        // not already assigned in DB
+                        .filter(e ->
+                                !shiftAssignmentRepository
+                                        .existsByEmployee_IdAndRosterDay_Id(
+                                                e.getId(),
+                                                day.getId()
+                                        ))
+
+                        // lowest weekly hours first
+                        .sorted(Comparator.comparingLong(
+                                e -> shiftAssignmentRepository.sumWeeklyHours(
+                                        e.getId(),
+                                        day.getRosterWeek().getId()
+                                )
+                        ))
+                        .toList();
+
+        for (Employee e : candidates) {
+
+            if (shortage <= 0) {
+                break;
+            }
+
+            try {
+
+                RosterContext ctx =
+                        contextBuilder.build(e, day, earlyType)
+                                .toBuilder()
+                                .draggedOverride(true)
+                                .build();
+
+                validationService.validateHard(ctx);
+                assignmentService.assign(ctx);
+
+                assignedToday.add(e.getId());
+                shortage--;
+
+                log.warn("✅ Weekend Early rescued using emp={}",
+                        e.getEmployeeCode());
+
+            } catch (BusinessRuleException ignored) {
             }
         }
     }
