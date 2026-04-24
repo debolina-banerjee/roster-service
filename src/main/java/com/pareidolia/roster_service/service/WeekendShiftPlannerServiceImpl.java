@@ -362,6 +362,11 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
         performEveningLastRescue(rosterDay, assignedToday);
 
+        //Final addition - 1
+
+        performCriticalOnDutyToGraveyard(rosterDay, assignedToday);
+
+
         performOnDutyBackfill(rosterDay, employees, assignedToday);
 
     }
@@ -1377,6 +1382,62 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                 log.error("CRITICAL FILL FAILED → emp={} reason={}",
                         emp.getEmployeeCode(),
                         ex.getMessage());
+            }
+        }
+    }
+
+    //Final addition - 2
+
+    private void performCriticalOnDutyToGraveyard(
+            RosterDay day,
+            Set<Long> assignedToday) {
+
+        int required = requiredFor(day, GRAVEYARD);
+
+        long current =
+                shiftAssignmentRepository.countByRosterDayAndShiftCode(
+                        day.getId(), GRAVEYARD);
+
+        if (current >= required) return;
+
+        int shortage = required - (int) current;
+
+        if (shortage != 1) return;
+
+        List<Employee> onDutyPool =
+                shiftAssignmentRepository
+                        .findEmployeesByShiftCodeAndDate(
+                                ON_DUTY,
+                                day.getDayDate());
+
+        for (Employee emp : onDutyPool) {
+
+            try {
+
+                shiftAssignmentRepository
+                        .deleteByEmployeeAndRosterDayAndShiftType_Code(
+                                emp.getId(),
+                                day.getId(),
+                                ON_DUTY
+                        );
+
+                RosterContext ctx =
+                        contextBuilder.build(
+                                        emp,
+                                        day,
+                                        getShiftType(day, GRAVEYARD))
+                                .toBuilder()
+                                .draggedOverride(true)
+                                .build();
+
+                validationService.validateHard(ctx);
+                assignmentService.assign(ctx);
+
+                assignedToday.add(emp.getId());
+
+                return;
+
+            } catch (Exception ignored) {
             }
         }
     }

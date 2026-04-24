@@ -54,6 +54,14 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
         Long weekId = rosterDay.getRosterWeek().getId();
 
 
+
+        //Final Addition - 1
+
+        boolean donorDay =
+                rosterDay.getDayDate().getDayOfWeek() == java.time.DayOfWeek.THURSDAY
+                        || rosterDay.getDayDate().getDayOfWeek() == java.time.DayOfWeek.FRIDAY;
+
+
         //New Addition - 1
 
         boolean isWeekend =
@@ -102,6 +110,22 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 
             ShiftCode sc = config.getShiftType().getCode();
             int required = config.getRequiredResources();
+
+            //Final addition - 2
+
+            if (donorDay &&
+                    (sc == NIGHT || sc == GRAVEYARD)) {
+
+                int totalNightFamily =
+                        getRequired(shiftConfigs, NIGHT)
+                                + getRequired(shiftConfigs, GRAVEYARD);
+
+                if (totalNightFamily == 8) {
+                    if (sc == GRAVEYARD) {
+                        required = required - 1;
+                    }
+                }
+            }
 
             if (required == 0 || sc == ON_DUTY) continue;
 
