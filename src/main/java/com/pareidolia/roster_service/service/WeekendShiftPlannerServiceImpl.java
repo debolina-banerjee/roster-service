@@ -380,6 +380,10 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
         performOnDutyBackfill(rosterDay, employees, assignedToday);
 
+        //trying to bring stability
+        performWeekendDonorRecovery(rosterDay, assignedToday);
+
+
     }
     // =====================================================
     // FINAL BACKFILL — WITH HARD EVENING GUARD
@@ -1467,16 +1471,14 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
         ShiftCode targetShift = null;
 
         if (dow == java.time.DayOfWeek.SATURDAY) {
-            targetShift = EVENING;
+            targetShift = EARLY_MORNING;   // your actual shortage
         }
 
         if (dow == java.time.DayOfWeek.SUNDAY) {
-            targetShift = EARLY_MORNING;
+            targetShift = EVENING;         // your actual shortage
         }
 
-        if (targetShift == null) {
-            return;
-        }
+        if (targetShift == null) return;
 
         int required = requiredFor(day, targetShift);
 
@@ -1484,9 +1486,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                 shiftAssignmentRepository.countByRosterDayAndShiftCode(
                         day.getId(), targetShift);
 
-        if (current >= required) {
-            return;
-        }
+        if (current >= required) return;
 
         List<Employee> pool =
                 employeeRepository.findActiveNotOnLeave(day.getDayDate())
