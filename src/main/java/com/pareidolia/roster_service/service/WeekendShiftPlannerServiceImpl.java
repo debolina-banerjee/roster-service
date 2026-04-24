@@ -37,7 +37,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
     private final WeeklyOffRepository weeklyOffRepository;
 
     private static final List<ShiftCode> PRIORITY =
-            List.of(EARLY_MORNING, EVENING, NIGHT,GRAVEYARD,ON_DUTY);
+            List.of(EARLY_MORNING, NIGHT,GRAVEYARD,EVENING, ON_DUTY);
 
     @Override
     @Transactional
@@ -360,11 +360,13 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
         performCrossShiftRebalance(rosterDay, assignedToday);
 
+        //did after almost stable
+        performCriticalOnDutyToGraveyard(rosterDay, assignedToday);
         performEveningLastRescue(rosterDay, assignedToday);
 
         //Final addition - 1
 
-        performCriticalOnDutyToGraveyard(rosterDay, assignedToday);
+//        performCriticalOnDutyToGraveyard(rosterDay, assignedToday);
 
 
         performOnDutyBackfill(rosterDay, employees, assignedToday);
