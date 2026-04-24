@@ -11,4 +11,11 @@ import java.util.List;
 public interface WeeklyOffPreferenceRepository extends JpaRepository<WeeklyOffPreference, Long> {
     List<WeeklyOffPreference> findByWeekStartDate(LocalDate weekStartDate);
     int countByPreferredDate(LocalDate preferredDate);
+
+    int countByPreferredDateAndWeekStartDate(
+            LocalDate preferredDate,
+            LocalDate weekStartDate
+    );
+
+    void deleteByWeekStartDate(LocalDate weekStartDate);
 }

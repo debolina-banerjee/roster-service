@@ -40,6 +40,7 @@ public interface WeeklyOffRepository extends JpaRepository<WeeklyOff, Long> {
             Long employeeId,
             LocalDate weekStartDate
     );
+
 }
 
 
