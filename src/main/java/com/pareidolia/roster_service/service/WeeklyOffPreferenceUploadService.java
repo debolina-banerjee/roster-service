@@ -87,7 +87,7 @@ public class WeeklyOffPreferenceUploadService {
                     boolean isWeekday =
                             preferredDate.getDayOfWeek().getValue() <= 5;
 
-                    int cap = isWeekday ? 2 : 5;
+                    int cap = isWeekday ? 2 : 4;
 
                     if (total >= cap) {
                         log.warn("⚠️ Cap reached for {} → skipping {}", preferredDate, empCode);
