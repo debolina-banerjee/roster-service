@@ -820,16 +820,16 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                             .existsByEmployee_IdAndRosterDay_Id(
                                     e.getId(),
                                     day.getId());
-//
-//            if (alreadyAssignedInDb || assignedToday.contains(e.getId())) {
-//                continue;
-//            }
+
+            if (alreadyAssignedInDb || assignedToday.contains(e.getId())) {
+                continue;
+            }
 
             //commented above
 
-            if (alreadyAssignedInDb) {
-                continue;
-            }
+//            if (alreadyAssignedInDb) {
+//                continue;
+//            }
 
             try {
                 RosterContext ctx =
