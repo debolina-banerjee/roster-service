@@ -360,6 +360,11 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
         performCrossShiftRebalance(rosterDay, assignedToday);
 
+        //did after second most stable
+
+        performEveningLastRescue(rosterDay, assignedToday);   // keep here
+
+
         //did after almost stable
         performCriticalOnDutyToGraveyard(rosterDay, assignedToday);
 
