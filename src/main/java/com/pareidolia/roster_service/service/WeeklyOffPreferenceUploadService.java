@@ -25,7 +25,7 @@ public class WeeklyOffPreferenceUploadService {
     public void process(MultipartFile file, LocalDate weekStartDate)
 
     {
-        preferenceRepository.deleteByWeekStartDate(weekStartDate);
+//        preferenceRepository.deleteByWeekStartDate(weekStartDate);
         try (Workbook workbook = new XSSFWorkbook(file.getInputStream())) {
 
             Sheet sheet = workbook.getSheetAt(0);
@@ -82,14 +82,14 @@ public class WeeklyOffPreferenceUploadService {
                     }
 
                     int inMemoryCount = countPerDay.getOrDefault(preferredDate, 0);
-                   // int dbCount = preferenceRepository.countByPreferredDate(preferredDate);
+                   int dbCount = preferenceRepository.countByPreferredDate(preferredDate);
 
 
-                    int dbCount =
-                            preferenceRepository.countByPreferredDateAndWeekStartDate(
-                                    preferredDate,
-                                    weekStartDate
-                            );
+//                    int dbCount =
+//                            preferenceRepository.countByPreferredDateAndWeekStartDate(
+//                                    preferredDate,
+//                                    weekStartDate
+//                            );
 
                     int total = inMemoryCount + dbCount;
 
