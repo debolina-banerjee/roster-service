@@ -390,20 +390,20 @@ public class ExcelReportService {
             c.setCellStyle(header);
         }
 
-//        List<WeeklyOffPreference> prefs =
-//                preferenceRepo.findByWeekStartDate(weekStart);
-
-        List<WeeklyOffPreference> rawPrefs =
+        List<WeeklyOffPreference> prefs =
                 preferenceRepo.findByWeekStartDate(weekStart);
 
-        Map<String, WeeklyOffPreference> prefMap = new LinkedHashMap<>();
-
-        for (WeeklyOffPreference p : rawPrefs) {
-            prefMap.put(p.getEmployeeCode(), p);
-        }
-
-        List<WeeklyOffPreference> prefs =
-                new ArrayList<>(prefMap.values());
+//        List<WeeklyOffPreference> rawPrefs =
+//                preferenceRepo.findByWeekStartDate(weekStart);
+//
+//        Map<String, WeeklyOffPreference> prefMap = new LinkedHashMap<>();
+//
+//        for (WeeklyOffPreference p : rawPrefs) {
+//            prefMap.put(p.getEmployeeCode(), p);
+//        }
+//
+//        List<WeeklyOffPreference> prefs =
+//                new ArrayList<>(prefMap.values());
 
         int rowIdx = 1;
         int honored = 0;
