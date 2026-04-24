@@ -360,30 +360,17 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
         performCrossShiftRebalance(rosterDay, assignedToday);
 
-        //did after second most stable
-
-        performEveningLastRescue(rosterDay, assignedToday);   // keep here
-
-
-        //did after almost stable
-        performCriticalOnDutyToGraveyard(rosterDay, assignedToday);
-
-        //latest addition
+        /* fill weekend shortages BEFORE optional fills */
         performWeekendDonorRecovery(rosterDay, assignedToday);
 
+        /* rescue if evening still short */
         performEveningLastRescue(rosterDay, assignedToday);
 
-        //Final addition - 1
+        /* if graveyard still short by 1, convert ON_DUTY */
+        performCriticalOnDutyToGraveyard(rosterDay, assignedToday);
 
-//        performCriticalOnDutyToGraveyard(rosterDay, assignedToday);
-
-
+        /* only after all critical shifts are safe */
         performOnDutyBackfill(rosterDay, employees, assignedToday);
-
-        //trying to bring stability
-        performWeekendDonorRecovery(rosterDay, assignedToday);
-
-
     }
     // =====================================================
     // FINAL BACKFILL — WITH HARD EVENING GUARD
@@ -1468,25 +1455,34 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
         java.time.DayOfWeek dow = day.getDayDate().getDayOfWeek();
 
-        ShiftCode targetShift = null;
-
-        if (dow == java.time.DayOfWeek.SATURDAY) {
-            targetShift = EARLY_MORNING;   // your actual shortage
+        if (dow != java.time.DayOfWeek.SATURDAY &&
+                dow != java.time.DayOfWeek.SUNDAY) {
+            return;
         }
 
-        if (dow == java.time.DayOfWeek.SUNDAY) {
-            targetShift = EVENING;         // your actual shortage
-        }
+        List<ShiftCode> targets = new ArrayList<>();
 
-        if (targetShift == null) return;
-
-        int required = requiredFor(day, targetShift);
-
-        long current =
+        int earlyReq = requiredFor(day, EARLY_MORNING);
+        long earlyNow =
                 shiftAssignmentRepository.countByRosterDayAndShiftCode(
-                        day.getId(), targetShift);
+                        day.getId(), EARLY_MORNING);
 
-        if (current >= required) return;
+        if (earlyNow < earlyReq) {
+            targets.add(EARLY_MORNING);
+        }
+
+        int eveReq = requiredFor(day, EVENING);
+        long eveNow =
+                shiftAssignmentRepository.countByRosterDayAndShiftCode(
+                        day.getId(), EVENING);
+
+        if (eveNow < eveReq) {
+            targets.add(EVENING);
+        }
+
+        if (targets.isEmpty()) {
+            return;
+        }
 
         List<Employee> pool =
                 employeeRepository.findActiveNotOnLeave(day.getDayDate())
@@ -1498,29 +1494,48 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                         day.getRosterWeek().getId())))
                         .toList();
 
-        ShiftType targetType = getShiftType(day, targetShift);
+        for (ShiftCode targetShift : targets) {
 
-        for (Employee e : pool) {
+            int required = requiredFor(day, targetShift);
 
-            if (current >= required) break;
+            long current =
+                    shiftAssignmentRepository.countByRosterDayAndShiftCode(
+                            day.getId(), targetShift);
 
-            try {
+            if (current >= required) {
+                continue;
+            }
 
-                RosterContext ctx =
-                        contextBuilder.build(e, day, targetType)
-                                .toBuilder()
-                                .draggedOverride(true)
-                                .build();
+            ShiftType targetType = getShiftType(day, targetShift);
 
-                validationService.validateHard(ctx);
-                assignmentService.assign(ctx);
+            for (Employee e : pool) {
 
-                assignedToday.add(e.getId());
-                current++;
+                if (assignedToday.contains(e.getId())) {
+                    continue;
+                }
 
-            } catch (Exception ignored) {
+                if (current >= required) {
+                    break;
+                }
+
+                try {
+
+                    RosterContext ctx =
+                            contextBuilder.build(e, day, targetType)
+                                    .toBuilder()
+                                    .draggedOverride(true)
+                                    .build();
+
+                    validationService.validateHard(ctx);
+                    assignmentService.assign(ctx);
+
+                    assignedToday.add(e.getId());
+                    current++;
+
+                } catch (Exception ignored) {
+                }
             }
         }
     }
+    }
 
-}
