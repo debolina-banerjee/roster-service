@@ -105,6 +105,12 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
         int eveningRequired = getRequired(shiftConfigs, EVENING);
         int graveyardRequired = getRequired(shiftConfigs, GRAVEYARD);
 
+        //added now
+
+        if (donorDay && graveyardRequired == 6) {
+            graveyardRequired = 5;
+        }
+
         // ================= PASS 1 =================
         for (ShiftConfig config : shiftConfigs) {
 
@@ -386,7 +392,11 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
         //performOnDutyBackfill(rosterDay, employees, assignedToday);
         //performFinalSafetySweep(rosterDay, employees,assignedToday);
         performCrossShiftRebalance(rosterDay, assignedToday);
-        performCriticalGraveyardFill( rosterDay, assignedToday);
+
+        if (!donorDay) {
+            performCriticalGraveyardFill(rosterDay, assignedToday);
+        }
+//        performCriticalGraveyardFill( rosterDay, assignedToday);
         performOnDutyBackfill(rosterDay, employees, assignedToday);
 
 

@@ -363,11 +363,13 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
         /* fill weekend shortages BEFORE optional fills */
         performWeekendDonorRecovery(rosterDay, assignedToday);
 
+        /* if graveyard still short by 1, convert ON_DUTY */
+        performCriticalOnDutyToGraveyard(rosterDay, assignedToday);
+
         /* rescue if evening still short */
         performEveningLastRescue(rosterDay, assignedToday);
 
-        /* if graveyard still short by 1, convert ON_DUTY */
-        performCriticalOnDutyToGraveyard(rosterDay, assignedToday);
+
 
         /* only after all critical shifts are safe */
         performOnDutyBackfill(rosterDay, employees, assignedToday);
@@ -1484,15 +1486,13 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
             return;
         }
 
-        List<Employee> pool =
-                employeeRepository.findActiveNotOnLeave(day.getDayDate())
-                        .stream()
-                        .filter(e -> !assignedToday.contains(e.getId()))
-                        .sorted(Comparator.comparingLong(
-                                e -> shiftAssignmentRepository.sumWeeklyHours(
-                                        e.getId(),
-                                        day.getRosterWeek().getId())))
-                        .toList();
+        // Bigger shortage first
+        targets.sort((a, b) -> Long.compare(
+                requiredFor(day, b) -
+                        shiftAssignmentRepository.countByRosterDayAndShiftCode(day.getId(), b),
+                requiredFor(day, a) -
+                        shiftAssignmentRepository.countByRosterDayAndShiftCode(day.getId(), a)
+        ));
 
         for (ShiftCode targetShift : targets) {
 
@@ -1508,18 +1508,28 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
             ShiftType targetType = getShiftType(day, targetShift);
 
-            for (Employee e : pool) {
+            // ==================================================
+            // STEP 1 → Try unassigned employees first
+            // ==================================================
+            List<Employee> freePool =
+                    employeeRepository.findActiveNotOnLeave(day.getDayDate())
+                            .stream()
+                            .filter(e ->
+                                    !shiftAssignmentRepository
+                                            .existsByEmployee_IdAndRosterDay_Id(
+                                                    e.getId(),
+                                                    day.getId()))
+                            .sorted(Comparator.comparingLong(
+                                    e -> shiftAssignmentRepository.sumWeeklyHours(
+                                            e.getId(),
+                                            day.getRosterWeek().getId())))
+                            .toList();
 
-                if (assignedToday.contains(e.getId())) {
-                    continue;
-                }
+            for (Employee e : freePool) {
 
-                if (current >= required) {
-                    break;
-                }
+                if (current >= required) break;
 
                 try {
-
                     RosterContext ctx =
                             contextBuilder.build(e, day, targetType)
                                     .toBuilder()
@@ -1533,6 +1543,48 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                     current++;
 
                 } catch (Exception ignored) {
+                }
+            }
+
+            // ==================================================
+            // STEP 2 → If still short, move ON_DUTY employee
+            // ==================================================
+            if (current < required) {
+
+                List<Employee> onDutyPool =
+                        shiftAssignmentRepository
+                                .findEmployeesByShiftCodeAndDate(
+                                        ON_DUTY,
+                                        day.getDayDate());
+
+                for (Employee emp : onDutyPool) {
+
+                    if (current >= required) break;
+
+                    try {
+
+                        shiftAssignmentRepository
+                                .deleteByEmployeeAndRosterDayAndShiftType_Code(
+                                        emp.getId(),
+                                        day.getId(),
+                                        ON_DUTY
+                                );
+                        shiftAssignmentRepository.flush();
+
+                        RosterContext ctx =
+                                contextBuilder.build(emp, day, targetType)
+                                        .toBuilder()
+                                        .draggedOverride(true)
+                                        .build();
+
+                        validationService.validateHard(ctx);
+                        assignmentService.assign(ctx);
+
+                        assignedToday.add(emp.getId());
+                        current++;
+
+                    } catch (Exception ignored) {
+                    }
                 }
             }
         }
