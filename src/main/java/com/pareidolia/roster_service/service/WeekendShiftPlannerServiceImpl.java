@@ -29,7 +29,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
     private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final LeaveImportRepository leaveImportRepository;
 
-    private final ShiftTypeRepository  shiftTypeRepository;
+    private final ShiftTypeRepository shiftTypeRepository;
 
     private final RosterContextBuilder contextBuilder;
     private final ValidationService validationService;
@@ -37,7 +37,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
     private final WeeklyOffRepository weeklyOffRepository;
 
     private static final List<ShiftCode> PRIORITY =
-            List.of(EARLY_MORNING, NIGHT,GRAVEYARD,EVENING, ON_DUTY);
+            List.of(EARLY_MORNING, NIGHT, GRAVEYARD, EVENING, ON_DUTY);
 
     @Override
     @Transactional
@@ -166,7 +166,6 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                 }
 
 
-
 //                if (sc != EVENING && sc != EARLY_MORNING && eveningRemaining > 0) {
 //
 //                    int safetyBuffer = 0;
@@ -181,8 +180,6 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
                 //Commented from line 170 - if condition replaced
                 //New Addition - 3
-
-
 
 
                 if (!isWeekend &&
@@ -204,7 +201,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                         (sc != GRAVEYARD
                                 && eveningRemaining == 0
                                 && graveyardRemaining > 0
-                                && remainingEmployees <= graveyardRemaining );
+                                && remainingEmployees <= graveyardRemaining);
 
                 if (protectGraveyard) continue;
 
@@ -368,12 +365,13 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
         /* rescue if evening still short */
         performEveningLastRescue(rosterDay, assignedToday);
-
-
+        /*Added last moment*/
+        performWeekendOverflowCheck(rosterDay, assignedToday);
 
         /* only after all critical shifts are safe */
         performOnDutyBackfill(rosterDay, employees, assignedToday);
     }
+
     // =====================================================
     // FINAL BACKFILL — WITH HARD EVENING GUARD
     // =====================================================
@@ -575,8 +573,8 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
         }
 
 
-
     }
+
     // =====================================================
     private void performNightRecovery(RosterDay day, Set<Long> assignedToday) {
 
@@ -732,8 +730,6 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
     }
 
 
-
-
     // =====================================================
     // HELPER METHODS (UNCHANGED)
     // =====================================================
@@ -761,7 +757,6 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                 .orElseThrow()
                 .getShiftType();
     }
-
 
 
     private void performEveningLastRescue(
@@ -841,7 +836,6 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                 }
 
 
-
                 validationService.validateHard(ctx);
                 assignmentService.assign(ctx);
                 assignedToday.add(e.getId());
@@ -852,6 +846,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
         }
 
     }
+
     private void performOnDutyBackfill(
             RosterDay day,
             List<Employee> employees,
@@ -888,15 +883,14 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
         }
 
 
-
         int remainingEmployees =
                 employees.size() - assignedToday.size();
 
         int totalCriticalRemaining =
-                Math.max(0, graveReq - (int)graveNow)
-                        + Math.max(0, earlyReq - (int)earlyNow)
-                        + Math.max(0, eveningReq - (int)eveningNow)
-                        + Math.max(0, nightReq - (int)nightNow);
+                Math.max(0, graveReq - (int) graveNow)
+                        + Math.max(0, earlyReq - (int) earlyNow)
+                        + Math.max(0, eveningReq - (int) eveningNow)
+                        + Math.max(0, nightReq - (int) nightNow);
 
 // 🚨 DO NOT consume last critical pool
         if (remainingEmployees <= totalCriticalRemaining) {
@@ -1010,6 +1004,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
             }
         }
     }
+
     private void performGlobalShortageSweep(
             RosterDay day,
             List<Employee> employees,
@@ -1073,6 +1068,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
             }
         }
     }
+
     // =====================================================
 // 🔥 CROSS SHIFT REBALANCE — FINAL STABILIZER
 // Fixes last-slot shortages when pool becomes tight
@@ -1225,7 +1221,6 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                         // ===============================
 
 
-
                         // 2️⃣ ASSIGN to target shift
                         RosterContext ctx =
                                 contextBuilder.build(emp, day, targetType)
@@ -1262,9 +1257,10 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
             }
         }
     }
+
     private void performFinalSafetySweep(
             RosterDay day,
-            List<Employee> employees,Set<Long> assignedToday) {
+            List<Employee> employees, Set<Long> assignedToday) {
 
 
         boolean graveOk =
@@ -1324,6 +1320,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
             }
         }
     }
+
     private int requiredFor(RosterDay day, ShiftCode code) {
         return shiftConfigRepository
                 .findByRosterWeek_IdAndDayCategoryAndShiftType_Code(
@@ -1333,6 +1330,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                 .map(ShiftConfig::getRequiredResources)
                 .orElse(0);
     }
+
     private void performCriticalGraveyardFill(
             RosterDay day,
             Set<Long> assignedToday) {
@@ -1451,6 +1449,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
             }
         }
     }
+
     private void performWeekendDonorRecovery(
             RosterDay day,
             Set<Long> assignedToday) {
@@ -1589,5 +1588,79 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
             }
         }
     }
+    private void performWeekendOverflowCheck(
+            RosterDay day,
+            Set<Long> assignedToday) {
+
+        if (day.getDayCategory() !=
+                com.pareidolia.roster_service.enumtype.DayCategory.WEEKEND) {
+            return;
+        }
+
+        List<ShiftCode> all =
+                List.of(EARLY_MORNING, EVENING, NIGHT, GRAVEYARD);
+
+        for (ShiftCode underShift : all) {
+
+            int requiredUnder = requiredFor(day, underShift);
+
+            long currentUnder =
+                    shiftAssignmentRepository
+                            .countByRosterDayAndShiftCode(
+                                    day.getId(), underShift);
+
+            if (currentUnder >= requiredUnder) continue;
+
+            for (ShiftCode overShift : all) {
+
+                if (overShift == underShift) continue;
+
+                int requiredOver = requiredFor(day, overShift);
+
+                long currentOver =
+                        shiftAssignmentRepository
+                                .countByRosterDayAndShiftCode(
+                                        day.getId(), overShift);
+
+                if (currentOver <= requiredOver) continue;
+
+                List<Employee> donors =
+                        shiftAssignmentRepository
+                                .findEmployeesByShiftCodeAndDate(
+                                        overShift,
+                                        day.getDayDate());
+
+                for (Employee emp : donors) {
+
+                    try {
+
+                        shiftAssignmentRepository
+                                .deleteByEmployeeAndRosterDayAndShiftType_Code(
+                                        emp.getId(),
+                                        day.getId(),
+                                        overShift);
+
+                        shiftAssignmentRepository.flush();
+
+                        RosterContext ctx =
+                                contextBuilder.build(
+                                                emp,
+                                                day,
+                                                getShiftType(day, underShift))
+                                        .toBuilder()
+                                        .draggedOverride(true)
+                                        .build();
+
+                        validationService.validateHard(ctx);
+                        assignmentService.assign(ctx);
+
+                        return;
+
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        }
     }
 
+}
