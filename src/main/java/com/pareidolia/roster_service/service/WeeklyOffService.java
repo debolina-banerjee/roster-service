@@ -70,7 +70,7 @@ public class WeeklyOffService {
         // 4️⃣ LIMITS
         // =====================================================
         int weekdayCap = 2;
-        int weekendCap = 5;
+        int weekendCap = 4;
 
         // =====================================================
         // 5️⃣ DAY ORDER
@@ -341,7 +341,7 @@ public class WeeklyOffService {
 
         boolean isWeekday = dayIndex <= 4;
 
-        int cap = isWeekday ? 2 : 5;
+        int cap = isWeekday ? 2 : 4;
 
         long count =
                 weeklyOffRepository.findAll().stream()
