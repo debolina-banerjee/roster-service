@@ -27,6 +27,7 @@ public class ExcelReportService {
     private final WeeklyOffRepository weeklyOffRepo;
     private final LeaveImportRepository leaveRepo;
     private final ShiftConfigRepository shiftConfigRepo;
+    private final WeeklyOffPreferenceRepository preferenceRepo;
 
     private static final DateTimeFormatter DAY_FMT =
             DateTimeFormatter.ofPattern("EEE, dd-MMM");
@@ -144,6 +145,7 @@ public class ExcelReportService {
         // ✅ summary
         buildShiftSummarySheet(wb, weekStart, weekId);
         buildEmployeeFairnessSheet(wb, weekStart, weekId);
+        buildPreferenceAuditSheet(wb, weekStart);
 
         wb.write(out);
         wb.close();
@@ -357,6 +359,100 @@ public class ExcelReportService {
             f.setCellValue(fairness);
             f.setCellStyle(style);
         }
+
+        for (int i = 0; i < cols.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+    }
+    private void buildPreferenceAuditSheet(
+            Workbook wb,
+            LocalDate weekStart) {
+
+        Sheet sheet = wb.createSheet("Preference Audit");
+
+        CellStyle header = ExcelStyleUtil.header(wb);
+        CellStyle okStyle = ExcelStyleUtil.color(wb, IndexedColors.LIGHT_GREEN);
+        CellStyle noStyle = ExcelStyleUtil.color(wb, IndexedColors.ROSE);
+
+        Row h = sheet.createRow(0);
+
+        String[] cols = {
+                "Emp Code",
+                "Name",
+                "Preferred Date",
+                "Actual W/O",
+                "Honored"
+        };
+
+        for (int i = 0; i < cols.length; i++) {
+            Cell c = h.createCell(i);
+            c.setCellValue(cols[i]);
+            c.setCellStyle(header);
+        }
+
+        List<WeeklyOffPreference> prefs =
+                preferenceRepo.findByWeekStartDate(weekStart);
+
+        int rowIdx = 1;
+        int honored = 0;
+
+        for (WeeklyOffPreference pref : prefs) {
+
+            Employee emp =
+                    employeeRepo.findByEmployeeCode(pref.getEmployeeCode())
+                            .orElse(null);
+
+            if (emp == null) continue;
+
+            Optional<WeeklyOff> offOpt =
+                    weeklyOffRepo.findFirstByEmployee_IdAndWeekStartDate(
+                            emp.getId(),
+                            weekStart
+                    );
+
+            LocalDate actualOff =
+                    offOpt.map(WeeklyOff::getOffDate).orElse(null);
+
+            boolean isHonored =
+                    actualOff != null &&
+                            actualOff.equals(pref.getPreferredDate());
+
+            if (isHonored) honored++;
+
+            Row r = sheet.createRow(rowIdx++);
+
+            r.createCell(0).setCellValue(emp.getEmployeeCode());
+            r.createCell(1).setCellValue(emp.getFullName());
+            r.createCell(2).setCellValue(pref.getPreferredDate().toString());
+            r.createCell(3).setCellValue(
+                    actualOff != null ? actualOff.toString() : "-"
+            );
+
+            Cell statusCell = r.createCell(4);
+            statusCell.setCellValue(isHonored ? "Yes" : "No");
+            statusCell.setCellStyle(isHonored ? okStyle : noStyle);
+        }
+
+        rowIdx++;
+
+        Row r1 = sheet.createRow(rowIdx++);
+        r1.createCell(0).setCellValue("Total Submitted");
+        r1.createCell(1).setCellValue(prefs.size());
+
+        Row r2 = sheet.createRow(rowIdx++);
+        r2.createCell(0).setCellValue("Honored");
+        r2.createCell(1).setCellValue(honored);
+
+        Row r3 = sheet.createRow(rowIdx++);
+        r3.createCell(0).setCellValue("Missed");
+        r3.createCell(1).setCellValue(prefs.size() - honored);
+
+        Row r4 = sheet.createRow(rowIdx++);
+        r4.createCell(0).setCellValue("Success %");
+        r4.createCell(1).setCellValue(
+                prefs.isEmpty() ? 0 :
+                        (honored * 100.0 / prefs.size())
+        );
 
         for (int i = 0; i < cols.length; i++) {
             sheet.autoSizeColumn(i);

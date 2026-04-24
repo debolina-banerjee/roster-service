@@ -35,6 +35,11 @@ public interface WeeklyOffRepository extends JpaRepository<WeeklyOff, Long> {
             LocalDate startDate,
             LocalDate endDate
     );
+
+    Optional<WeeklyOff> findFirstByEmployee_IdAndWeekStartDate(
+            Long employeeId,
+            LocalDate weekStartDate
+    );
 }
 
 
