@@ -1875,154 +1875,96 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                 GRAVEYARD
         );
 
-        Long weekId = day.getRosterWeek().getId();
-
         for (ShiftCode targetCode : shifts) {
 
             List<Employee> targetAssigned =
                     shiftAssignmentRepository
                             .findEmployeesByShiftCodeAndDate(
                                     targetCode,
-                                    day.getDayDate()
-                            );
+                                    day.getDayDate());
 
             boolean hasReviewer =
                     targetAssigned.stream()
                             .anyMatch(reviewerUtil::isReviewer);
 
-            if (hasReviewer) {
-                continue;
-            }
+            if (hasReviewer) continue;
 
-            int targetRequired = requiredFor(day, targetCode);
+            Employee removable =
+                    targetAssigned.stream()
+                            .filter(e -> !reviewerUtil.isReviewer(e))
+                            .findFirst()
+                            .orElse(null);
 
-            long targetCurrent =
-                    shiftAssignmentRepository
-                            .countByRosterDayAndShiftCode(
-                                    day.getId(),
-                                    targetCode
-                            );
-
-            if (targetCurrent == 0) {
-                continue;
-            }
+            if (removable == null) continue;
 
             for (ShiftCode donorCode : shifts) {
 
-                if (donorCode == targetCode) {
-                    continue;
-                }
+                if (donorCode == targetCode) continue;
 
-                long donorCurrent =
-                        shiftAssignmentRepository
-                                .countByRosterDayAndShiftCode(
-                                        day.getId(),
-                                        donorCode
-                                );
-
-                int donorRequired = requiredFor(day, donorCode);
-
-                if (donorCurrent <= donorRequired) {
-                    continue;
-                }
-
-                List<Employee> donorEmployees =
+                List<Employee> donorAssigned =
                         shiftAssignmentRepository
                                 .findEmployeesByShiftCodeAndDate(
                                         donorCode,
-                                        day.getDayDate()
-                                )
-                                .stream()
+                                        day.getDayDate());
+
+                Employee donorReviewer =
+                        donorAssigned.stream()
                                 .filter(reviewerUtil::isReviewer)
-                                .sorted(
-                                        Comparator.comparingLong(
-                                                e -> shiftAssignmentRepository
-                                                        .sumWeeklyHours(
-                                                                e.getId(),
-                                                                weekId
-                                                        )
-                                        )
-                                )
-                                .toList();
+                                .findFirst()
+                                .orElse(null);
 
-                for (Employee reviewer : donorEmployees) {
+                if (donorReviewer == null) continue;
 
-                    Employee removable =
-                            targetAssigned.stream()
-                                    .filter(e -> !reviewerUtil.isReviewer(e))
-                                    .findFirst()
-                                    .orElse(null);
+                try {
 
-                    if (removable == null) {
-                        continue;
-                    }
+                    // remove donor reviewer
+                    shiftAssignmentRepository
+                            .deleteByEmployeeAndRosterDayAndShiftType_Code(
+                                    donorReviewer.getId(),
+                                    day.getId(),
+                                    donorCode);
 
-                    try {
+                    // remove target non-reviewer
+                    shiftAssignmentRepository
+                            .deleteByEmployeeAndRosterDayAndShiftType_Code(
+                                    removable.getId(),
+                                    day.getId(),
+                                    targetCode);
 
-                        shiftAssignmentRepository
-                                .deleteByEmployeeAndRosterDayAndShiftType_Code(
-                                        reviewer.getId(),
-                                        day.getId(),
-                                        donorCode
-                                );
+                    shiftAssignmentRepository.flush();
 
-                        shiftAssignmentRepository
-                                .deleteByEmployeeAndRosterDayAndShiftType_Code(
-                                        removable.getId(),
-                                        day.getId(),
-                                        targetCode
-                                );
+                    // donor reviewer -> target
+                    RosterContext targetCtx =
+                            contextBuilder.build(
+                                            donorReviewer,
+                                            day,
+                                            getShiftType(day, targetCode))
+                                    .toBuilder()
+                                    .draggedOverride(true)
+                                    .build();
 
-                        shiftAssignmentRepository.flush();
+                    validationService.validateHard(targetCtx);
+                    assignmentService.assign(targetCtx);
 
-                        RosterContext targetCtx =
-                                contextBuilder.build(
-                                                reviewer,
-                                                day,
-                                                getShiftType(day, targetCode)
-                                        )
-                                        .toBuilder()
-                                        .draggedOverride(true)
-                                        .build();
+                    // removable -> donor
+                    RosterContext donorCtx =
+                            contextBuilder.build(
+                                            removable,
+                                            day,
+                                            getShiftType(day, donorCode))
+                                    .toBuilder()
+                                    .draggedOverride(true)
+                                    .build();
 
-                        validationService.validateHard(targetCtx);
-                        assignmentService.assign(targetCtx);
+                    validationService.validateHard(donorCtx);
+                    assignmentService.assign(donorCtx);
 
-                        RosterContext donorCtx =
-                                contextBuilder.build(
-                                                removable,
-                                                day,
-                                                getShiftType(day, donorCode)
-                                        )
-                                        .toBuilder()
-                                        .draggedOverride(true)
-                                        .build();
+                    assignedToday.add(donorReviewer.getId());
+                    assignedToday.add(removable.getId());
 
-                        validationService.validateHard(donorCtx);
-                        assignmentService.assign(donorCtx);
-
-                        assignedToday.add(reviewer.getId());
-                        assignedToday.add(removable.getId());
-
-                        break;
-
-                    } catch (Exception ignored) {
-                    }
-                }
-
-                targetAssigned =
-                        shiftAssignmentRepository
-                                .findEmployeesByShiftCodeAndDate(
-                                        targetCode,
-                                        day.getDayDate()
-                                );
-
-                hasReviewer =
-                        targetAssigned.stream()
-                                .anyMatch(reviewerUtil::isReviewer);
-
-                if (hasReviewer) {
                     break;
+
+                } catch (Exception ignored) {
                 }
             }
         }
