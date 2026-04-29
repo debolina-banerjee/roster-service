@@ -40,6 +40,8 @@ public class Employee {
     private int maxWeeklyHours;
 
     public boolean isSenior() {
-        return this.employeeLevel == EmployeeLevel.SENIOR;
+        return this.employeeLevel == EmployeeLevel.SENIOR
+                || this.employeeLevel == EmployeeLevel.MID_SENIOR;
+
     }
 }
