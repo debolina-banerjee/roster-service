@@ -36,6 +36,8 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
     private final ShiftAssignmentService assignmentService;
     private final WeeklyOffRepository weeklyOffRepository;
 
+    private final ReviewerUtil reviewerUtil;
+
     private static final List<ShiftCode> PRIORITY =
             List.of( NIGHT,GRAVEYARD,EARLY_MORNING,EVENING,ON_DUTY);
 
@@ -398,6 +400,8 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
         }
 //        performCriticalGraveyardFill( rosterDay, assignedToday);
         performOnDutyBackfill(rosterDay, employees, assignedToday);
+
+        ensureSeniorCoverage(rosterDay, assignedToday);
 
 
     }
@@ -1572,6 +1576,118 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                 log.error("CRITICAL FILL FAILED → emp={} reason={}",
                         emp.getEmployeeCode(),
                         ex.getMessage());
+            }
+        }
+    }
+    private void ensureSeniorCoverage(
+            RosterDay day,
+            Set<Long> assignedToday) {
+
+        List<ShiftCode> shifts = List.of(
+                EARLY_MORNING,
+                EVENING,
+                NIGHT,
+                GRAVEYARD
+        );
+
+        for (ShiftCode code : shifts) {
+
+            List<Employee> assigned =
+                    shiftAssignmentRepository
+                            .findEmployeesByShiftCodeAndDate(
+                                    code,
+                                    day.getDayDate()
+                            );
+
+            boolean hasSenior =
+                    assigned.stream()
+                            .anyMatch(Employee::isSenior);
+
+            if (hasSenior) {
+                continue;
+            }
+
+            List<Employee> candidates =
+                    employeeRepository
+                            .findActiveNotOnLeave(day.getDayDate())
+                            .stream()
+                            .filter(Employee::isSenior)
+                            .filter(e ->
+                                    !shiftAssignmentRepository
+                                            .existsByEmployee_IdAndRosterDay_Id(
+                                                    e.getId(),
+                                                    day.getId()))
+                            .sorted((a, b) -> {
+
+                                boolean aReviewer =
+                                        reviewerUtil.isReviewer(a);
+
+                                boolean bReviewer =
+                                        reviewerUtil.isReviewer(b);
+
+                                if (aReviewer != bReviewer) {
+                                    return aReviewer ? -1 : 1;
+                                }
+
+                                Long aHours =
+                                        shiftAssignmentRepository
+                                                .sumWeeklyHours(
+                                                        a.getId(),
+                                                        day.getRosterWeek().getId()
+                                                );
+
+                                Long bHours =
+                                        shiftAssignmentRepository
+                                                .sumWeeklyHours(
+                                                        b.getId(),
+                                                        day.getRosterWeek().getId()
+                                                );
+
+                                return aHours.compareTo(bHours);
+                            })
+                            .toList();
+
+            for (Employee senior : candidates) {
+
+                Employee removable =
+                        assigned.stream()
+                                .filter(e -> !e.isSenior())
+                                .findFirst()
+                                .orElse(null);
+
+                if (removable == null) {
+                    continue;
+                }
+
+                try {
+
+                    shiftAssignmentRepository
+                            .deleteByEmployeeAndRosterDayAndShiftType_Code(
+                                    removable.getId(),
+                                    day.getId(),
+                                    code
+                            );
+
+                    shiftAssignmentRepository.flush();
+
+                    RosterContext ctx =
+                            contextBuilder.build(
+                                            senior,
+                                            day,
+                                            getShiftType(day, code)
+                                    ).toBuilder()
+                                    .draggedOverride(true)
+                                    .build();
+
+                    validationService.validateHard(ctx);
+                    assignmentService.assign(ctx);
+
+                    assignedToday.add(senior.getId());
+
+                    break;
+
+                } catch (Exception ignored) {
+                }
             }
         }
     }
