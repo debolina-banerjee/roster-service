@@ -1678,24 +1678,27 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                 GRAVEYARD
         );
 
-        for (ShiftCode code : shifts) {
+        for (ShiftCode targetShift : shifts) {
 
-            List<Employee> assigned =
+            List<Employee> targetAssigned =
                     shiftAssignmentRepository
                             .findEmployeesByShiftCodeAndDate(
-                                    code,
+                                    targetShift,
                                     day.getDayDate()
                             );
 
             boolean hasSenior =
-                    assigned.stream()
+                    targetAssigned.stream()
                             .anyMatch(Employee::isSenior);
 
             if (hasSenior) {
                 continue;
             }
 
-            List<Employee> candidates =
+            // ------------------------------------------------
+            // STEP 1 : Try unassigned seniors first
+            // ------------------------------------------------
+            List<Employee> freeSeniors =
                     employeeRepository
                             .findActiveNotOnLeave(day.getDayDate())
                             .stream()
@@ -1721,39 +1724,36 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                         shiftAssignmentRepository
                                                 .sumWeeklyHours(
                                                         a.getId(),
-                                                        day.getRosterWeek().getId()
-                                                );
+                                                        day.getRosterWeek().getId());
 
                                 Long bHours =
                                         shiftAssignmentRepository
                                                 .sumWeeklyHours(
                                                         b.getId(),
-                                                        day.getRosterWeek().getId()
-                                                );
+                                                        day.getRosterWeek().getId());
 
                                 return aHours.compareTo(bHours);
                             })
                             .toList();
 
-            for (Employee senior : candidates) {
+            boolean fixed = false;
+
+            for (Employee senior : freeSeniors) {
 
                 Employee removable =
-                        assigned.stream()
+                        targetAssigned.stream()
                                 .filter(e -> !e.isSenior())
                                 .findFirst()
                                 .orElse(null);
 
-                if (removable == null) {
-                    continue;
-                }
+                if (removable == null) continue;
 
                 try {
-
                     shiftAssignmentRepository
                             .deleteByEmployeeAndRosterDayAndShiftType_Code(
                                     removable.getId(),
                                     day.getId(),
-                                    code
+                                    targetShift
                             );
 
                     shiftAssignmentRepository.flush();
@@ -1762,8 +1762,8 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                             contextBuilder.build(
                                             senior,
                                             day,
-                                            getShiftType(day, code)
-                                    ).toBuilder()
+                                            getShiftType(day, targetShift))
+                                    .toBuilder()
                                     .draggedOverride(true)
                                     .build();
 
@@ -1771,7 +1771,90 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                     assignmentService.assign(ctx);
 
                     assignedToday.add(senior.getId());
+                    fixed = true;
+                    break;
 
+                } catch (Exception ignored) {
+                }
+            }
+
+            if (fixed) continue;
+
+            // ------------------------------------------------
+            // STEP 2 : Borrow senior from donor shift
+            // ------------------------------------------------
+            List<ShiftCode> donorPriority = List.of(
+                    GRAVEYARD,
+                    EVENING,
+                    EARLY_MORNING,
+                    NIGHT
+            );
+
+            for (ShiftCode donorShift : donorPriority) {
+
+                if (donorShift == targetShift) continue;
+
+                List<Employee> donorAssigned =
+                        shiftAssignmentRepository
+                                .findEmployeesByShiftCodeAndDate(
+                                        donorShift,
+                                        day.getDayDate()
+                                );
+
+                List<Employee> donorSeniors =
+                        donorAssigned.stream()
+                                .filter(Employee::isSenior)
+                                .toList();
+
+                // donor must retain one senior
+                if (donorSeniors.size() <= 1) {
+                    continue;
+                }
+
+                Employee movingSenior = donorSeniors.get(0);
+
+                Employee removable =
+                        targetAssigned.stream()
+                                .filter(e -> !e.isSenior())
+                                .findFirst()
+                                .orElse(null);
+
+                if (removable == null) continue;
+
+                try {
+
+                    // remove donor senior from donor shift
+                    shiftAssignmentRepository
+                            .deleteByEmployeeAndRosterDayAndShiftType_Code(
+                                    movingSenior.getId(),
+                                    day.getId(),
+                                    donorShift
+                            );
+
+                    // remove junior from target shift
+                    shiftAssignmentRepository
+                            .deleteByEmployeeAndRosterDayAndShiftType_Code(
+                                    removable.getId(),
+                                    day.getId(),
+                                    targetShift
+                            );
+
+                    shiftAssignmentRepository.flush();
+
+                    // assign donor senior into uncovered shift
+                    RosterContext ctx =
+                            contextBuilder.build(
+                                            movingSenior,
+                                            day,
+                                            getShiftType(day, targetShift))
+                                    .toBuilder()
+                                    .draggedOverride(true)
+                                    .build();
+
+                    validationService.validateHard(ctx);
+                    assignmentService.assign(ctx);
+
+                    fixed = true;
                     break;
 
                 } catch (Exception ignored) {
