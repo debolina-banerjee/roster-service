@@ -609,13 +609,24 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                             .stream()
                             .filter(e -> !assignedToday.contains(e.getId()))
                             .filter(e -> e.getGender() != Gender.FEMALE)
-                            .sorted(
-                                    Comparator
-                                            .comparingLong((Employee e) ->
-                                                    shiftAssignmentRepository.sumWeeklyHours(
-                                                            e.getId(),
-                                                            day.getRosterWeek().getId()))
-                            )
+                            .sorted((a, b) -> {
+
+                                boolean aReviewer = reviewerUtil.isReviewer(a);
+                                boolean bReviewer = reviewerUtil.isReviewer(b);
+
+                                // 1️⃣ Prefer reviewer first
+                                if (aReviewer != bReviewer) {
+                                    return aReviewer ? -1 : 1;
+                                }
+
+                                // 2️⃣ Then fairness (weekly hours)
+                                return Long.compare(
+                                        shiftAssignmentRepository.sumWeeklyHours(
+                                                a.getId(), day.getRosterWeek().getId()),
+                                        shiftAssignmentRepository.sumWeeklyHours(
+                                                b.getId(), day.getRosterWeek().getId())
+                                );
+                            })
                             .toList();
 
             for (Employee e : candidates) {
@@ -690,12 +701,24 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                 .stream()
                                 .filter(e -> !assignedToday.contains(e.getId()))
                                 .filter(e -> e.getGender() != Gender.FEMALE)
-                                .sorted(
-                                        Comparator.comparingLong(
-                                                e -> shiftAssignmentRepository.sumWeeklyHours(
-                                                        e.getId(),
-                                                        day.getRosterWeek().getId()))
-                                )
+                                .sorted((a, b) -> {
+
+                                    boolean aReviewer = reviewerUtil.isReviewer(a);
+                                    boolean bReviewer = reviewerUtil.isReviewer(b);
+
+                                    // 1️⃣ Prefer reviewer first
+                                    if (aReviewer != bReviewer) {
+                                        return aReviewer ? -1 : 1;
+                                    }
+
+                                    // 2️⃣ Then fairness (weekly hours)
+                                    return Long.compare(
+                                            shiftAssignmentRepository.sumWeeklyHours(
+                                                    a.getId(), day.getRosterWeek().getId()),
+                                            shiftAssignmentRepository.sumWeeklyHours(
+                                                    b.getId(), day.getRosterWeek().getId())
+                                    );
+                                })
                                 .toList();
 
                 for (Employee e : fallback) {

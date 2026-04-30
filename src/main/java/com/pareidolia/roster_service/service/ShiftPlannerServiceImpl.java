@@ -727,19 +727,34 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 
                                 return true;
                             })
-                            .sorted(
-                                    Comparator
-                                            .comparingLong((Employee e) ->
-                                                    shiftAssignmentRepository.countRecentShiftType(
-                                                            e.getId(),
-                                                            code,
-                                                            day.getDayDate(),
-                                                            day.getDayDate().minusDays(21)))
-                                            .thenComparingLong(e ->
-                                                    shiftAssignmentRepository.sumWeeklyHours(
-                                                            e.getId(),
-                                                            day.getRosterWeek().getId()))
-                            )
+                            .sorted((a, b) -> {
+
+                                boolean aReviewer = reviewerUtil.isReviewer(a);
+                                boolean bReviewer = reviewerUtil.isReviewer(b);
+
+                                // 1️⃣ Prefer reviewer first
+                                if (aReviewer != bReviewer) {
+                                    return aReviewer ? -1 : 1;
+                                }
+
+                                // 2️⃣ Then recent shift fairness
+                                int recentCompare = Long.compare(
+                                        shiftAssignmentRepository.countRecentShiftType(
+                                                a.getId(), code, day.getDayDate(), day.getDayDate().minusDays(21)),
+                                        shiftAssignmentRepository.countRecentShiftType(
+                                                b.getId(), code, day.getDayDate(), day.getDayDate().minusDays(21))
+                                );
+
+                                if (recentCompare != 0) return recentCompare;
+
+                                // 3️⃣ Then weekly hours
+                                return Long.compare(
+                                        shiftAssignmentRepository.sumWeeklyHours(
+                                                a.getId(), day.getRosterWeek().getId()),
+                                        shiftAssignmentRepository.sumWeeklyHours(
+                                                b.getId(), day.getRosterWeek().getId())
+                                );
+                            })
                             .toList();
 
             for (Employee e : candidates) {
@@ -840,10 +855,24 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                                 .stream()
                                 .filter(e -> e.getGender() != Gender.FEMALE)
                                 .filter(e -> !assignedToday.contains(e.getId()))
-                                .sorted(Comparator.comparingLong(
-                                        e -> shiftAssignmentRepository.sumWeeklyHours(
-                                                e.getId(),
-                                                day.getRosterWeek().getId())))
+                                .sorted((a, b) -> {
+
+                                    boolean aReviewer = reviewerUtil.isReviewer(a);
+                                    boolean bReviewer = reviewerUtil.isReviewer(b);
+
+                                    // 1️⃣ Prefer reviewer
+                                    if (aReviewer != bReviewer) {
+                                        return aReviewer ? -1 : 1;
+                                    }
+
+                                    // 2️⃣ Then fairness
+                                    return Long.compare(
+                                            shiftAssignmentRepository.sumWeeklyHours(
+                                                    a.getId(), day.getRosterWeek().getId()),
+                                            shiftAssignmentRepository.sumWeeklyHours(
+                                                    b.getId(), day.getRosterWeek().getId())
+                                    );
+                                })
                                 .toList();
 
                 for (Employee e : desperatePool) {
