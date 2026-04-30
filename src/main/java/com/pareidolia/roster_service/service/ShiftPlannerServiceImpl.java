@@ -740,17 +740,17 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                                 // 2️⃣ NIGHT FAMILY FAIRNESS (NEW 🔥)
                                 long aLoad =
                                         shiftAssignmentRepository.countRecentShiftType(
-                                                a.getId(), NIGHT, day.getDayDate(), day.getDayDate().minusDays(21))
+                                                a.getId(), NIGHT, day.getDayDate(), day.getDayDate().minusDays(35))
                                                 +
                                                 shiftAssignmentRepository.countRecentShiftType(
-                                                        a.getId(), GRAVEYARD, day.getDayDate(), day.getDayDate().minusDays(21));
+                                                        a.getId(), GRAVEYARD, day.getDayDate(), day.getDayDate().minusDays(35));
 
                                 long bLoad =
                                         shiftAssignmentRepository.countRecentShiftType(
-                                                b.getId(), NIGHT, day.getDayDate(), day.getDayDate().minusDays(21))
+                                                b.getId(), NIGHT, day.getDayDate(), day.getDayDate().minusDays(35))
                                                 +
                                                 shiftAssignmentRepository.countRecentShiftType(
-                                                        b.getId(), GRAVEYARD, day.getDayDate(), day.getDayDate().minusDays(21));
+                                                        b.getId(), GRAVEYARD, day.getDayDate(), day.getDayDate().minusDays(35));
 
                                 if (aLoad != bLoad) {
                                     return Long.compare(aLoad, bLoad);
@@ -877,17 +877,17 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                                     // 2️⃣ NIGHT FAMILY FAIRNESS (NEW 🔥)
                                     long aLoad =
                                             shiftAssignmentRepository.countRecentShiftType(
-                                                    a.getId(), NIGHT, day.getDayDate(), day.getDayDate().minusDays(21))
+                                                    a.getId(), NIGHT, day.getDayDate(), day.getDayDate().minusDays(35))
                                                     +
                                                     shiftAssignmentRepository.countRecentShiftType(
-                                                            a.getId(), GRAVEYARD, day.getDayDate(), day.getDayDate().minusDays(21));
+                                                            a.getId(), GRAVEYARD, day.getDayDate(), day.getDayDate().minusDays(35));
 
                                     long bLoad =
                                             shiftAssignmentRepository.countRecentShiftType(
-                                                    b.getId(), NIGHT, day.getDayDate(), day.getDayDate().minusDays(21))
+                                                    b.getId(), NIGHT, day.getDayDate(), day.getDayDate().minusDays(35))
                                                     +
                                                     shiftAssignmentRepository.countRecentShiftType(
-                                                            b.getId(), GRAVEYARD, day.getDayDate(), day.getDayDate().minusDays(21));
+                                                            b.getId(), GRAVEYARD, day.getDayDate(), day.getDayDate().minusDays(35));
 
                                     if (aLoad != bLoad) {
                                         return Long.compare(aLoad, bLoad);
