@@ -732,22 +732,31 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                                 boolean aReviewer = reviewerUtil.isReviewer(a);
                                 boolean bReviewer = reviewerUtil.isReviewer(b);
 
-                                // 1️⃣ Prefer reviewer first
+                                // 1️⃣ Reviewer FIRST (DO NOT CHANGE THIS ORDER)
                                 if (aReviewer != bReviewer) {
                                     return aReviewer ? -1 : 1;
                                 }
 
-                                // 2️⃣ Then recent shift fairness
-                                int recentCompare = Long.compare(
+                                // 2️⃣ NIGHT FAMILY FAIRNESS (NEW 🔥)
+                                long aLoad =
                                         shiftAssignmentRepository.countRecentShiftType(
-                                                a.getId(), code, day.getDayDate(), day.getDayDate().minusDays(21)),
+                                                a.getId(), NIGHT, day.getDayDate(), day.getDayDate().minusDays(21))
+                                                +
+                                                shiftAssignmentRepository.countRecentShiftType(
+                                                        a.getId(), GRAVEYARD, day.getDayDate(), day.getDayDate().minusDays(21));
+
+                                long bLoad =
                                         shiftAssignmentRepository.countRecentShiftType(
-                                                b.getId(), code, day.getDayDate(), day.getDayDate().minusDays(21))
-                                );
+                                                b.getId(), NIGHT, day.getDayDate(), day.getDayDate().minusDays(21))
+                                                +
+                                                shiftAssignmentRepository.countRecentShiftType(
+                                                        b.getId(), GRAVEYARD, day.getDayDate(), day.getDayDate().minusDays(21));
 
-                                if (recentCompare != 0) return recentCompare;
+                                if (aLoad != bLoad) {
+                                    return Long.compare(aLoad, bLoad);
+                                }
 
-                                // 3️⃣ Then weekly hours
+                                // 3️⃣ Weekly hours fallback
                                 return Long.compare(
                                         shiftAssignmentRepository.sumWeeklyHours(
                                                 a.getId(), day.getRosterWeek().getId()),
@@ -860,20 +869,38 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                                     boolean aReviewer = reviewerUtil.isReviewer(a);
                                     boolean bReviewer = reviewerUtil.isReviewer(b);
 
-                                    // 1️⃣ Prefer reviewer
+                                    // 1️⃣ Reviewer FIRST (DO NOT CHANGE THIS ORDER)
                                     if (aReviewer != bReviewer) {
                                         return aReviewer ? -1 : 1;
                                     }
 
-                                    // 2️⃣ Then fairness
+                                    // 2️⃣ NIGHT FAMILY FAIRNESS (NEW 🔥)
+                                    long aLoad =
+                                            shiftAssignmentRepository.countRecentShiftType(
+                                                    a.getId(), NIGHT, day.getDayDate(), day.getDayDate().minusDays(21))
+                                                    +
+                                                    shiftAssignmentRepository.countRecentShiftType(
+                                                            a.getId(), GRAVEYARD, day.getDayDate(), day.getDayDate().minusDays(21));
+
+                                    long bLoad =
+                                            shiftAssignmentRepository.countRecentShiftType(
+                                                    b.getId(), NIGHT, day.getDayDate(), day.getDayDate().minusDays(21))
+                                                    +
+                                                    shiftAssignmentRepository.countRecentShiftType(
+                                                            b.getId(), GRAVEYARD, day.getDayDate(), day.getDayDate().minusDays(21));
+
+                                    if (aLoad != bLoad) {
+                                        return Long.compare(aLoad, bLoad);
+                                    }
+
+                                    // 3️⃣ Weekly hours fallback
                                     return Long.compare(
                                             shiftAssignmentRepository.sumWeeklyHours(
                                                     a.getId(), day.getRosterWeek().getId()),
                                             shiftAssignmentRepository.sumWeeklyHours(
                                                     b.getId(), day.getRosterWeek().getId())
                                     );
-                                })
-                                .toList();
+                                })                                .toList();
 
                 for (Employee e : desperatePool) {
 
