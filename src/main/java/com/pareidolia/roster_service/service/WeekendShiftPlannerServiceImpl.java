@@ -149,7 +149,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                         totalNightFamilyRemaining > 0;
 
                 boolean malePoolTooTight =
-                        remainingMalePool <= totalNightFamilyRemaining;
+                        remainingMalePool < totalNightFamilyRemaining;
 
 //                if (sc != NIGHT && sc != GRAVEYARD
 //                        && nightFamilyCritical
