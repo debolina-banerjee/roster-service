@@ -109,6 +109,29 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
             for (Employee emp : employees) {
 
+                if (sc == NIGHT || sc == GRAVEYARD) {
+
+                    long totalNightFamily =
+                            shiftAssignmentRepository.countRecentShiftType(
+                                    emp.getId(),
+                                    NIGHT,
+                                    rosterDay.getDayDate(),
+                                    rosterDay.getRosterWeek().getWeekStartDate()
+                            )
+                                    +
+                                    shiftAssignmentRepository.countRecentShiftType(
+                                            emp.getId(),
+                                            GRAVEYARD,
+                                            rosterDay.getDayDate(),
+                                            rosterDay.getRosterWeek().getWeekStartDate()
+                                    );
+
+                    if (totalNightFamily >= 16
+                            && assignedPerShift.get(sc) < required - 1) {
+                        continue;
+                    }
+                }
+
                 if (assignedToday.contains(emp.getId())) continue;
 
                 int current = assignedPerShift.get(sc);
@@ -604,6 +627,9 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
         Long weekId = day.getRosterWeek().getId();
 
+        // ✅ GLOBAL WINDOW (CRITICAL FIX)
+        LocalDate rosterStartDate = day.getRosterWeek().getWeekStartDate();
+
         List<ShiftCode> nightOrder =
                 List.of(NIGHT, GRAVEYARD);
 
@@ -632,12 +658,12 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                 boolean aReviewer = reviewerUtil.isReviewer(a);
                                 boolean bReviewer = reviewerUtil.isReviewer(b);
 
-                                // 1️⃣ Reviewer first (DO NOT TOUCH)
+                                // 1️⃣ Reviewer priority
                                 if (aReviewer != bReviewer) {
                                     return aReviewer ? -1 : 1;
                                 }
 
-                                // 2️⃣ 🔥 NIGHT FAMILY FAIRNESS (ADD THIS)
+                                // 2️⃣ Night load fairness
                                 long aNightLoad =
                                         shiftAssignmentRepository.countRecentShiftType(
                                                 a.getId(), NIGHT, day.getDayDate(), day.getDayDate().minusDays(14))
@@ -656,7 +682,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                     return Long.compare(aNightLoad, bNightLoad);
                                 }
 
-                                // 3️⃣ Weekly load (keep existing)
+                                // 3️⃣ Weekly hours
                                 return Long.compare(
                                         shiftAssignmentRepository.sumWeeklyHours(a.getId(), weekId),
                                         shiftAssignmentRepository.sumWeeklyHours(b.getId(), weekId)
@@ -666,26 +692,33 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
             for (Employee e : candidates) {
 
+                // ✅ GLOBAL FAIRNESS (NEW)
+                long totalNightFamily =
+                        shiftAssignmentRepository.countRecentShiftType(
+                                e.getId(), NIGHT, day.getDayDate(), rosterStartDate)
+                                +
+                                shiftAssignmentRepository.countRecentShiftType(
+                                        e.getId(), GRAVEYARD, day.getDayDate(), rosterStartDate);
+
+                // ✅ SHORT TERM LOAD
                 long nightLoad =
                         shiftAssignmentRepository.countRecentShiftType(
                                 e.getId(),
-                                ShiftCode.NIGHT,
+                                NIGHT,
                                 day.getDayDate(),
                                 day.getDayDate().minusDays(14)
                         )
                                 +
                                 shiftAssignmentRepository.countRecentShiftType(
                                         e.getId(),
-                                        ShiftCode.GRAVEYARD,
+                                        GRAVEYARD,
                                         day.getDayDate(),
                                         day.getDayDate().minusDays(14)
                                 );
 
-// Soft fairness block
-                if (nightLoad >= 6 && current < required - 1) {
-                    continue;
-                }
-
+                // 🔥 FINAL FAIRNESS LOGIC
+                if (totalNightFamily >= 16 && current < required - 1) continue;
+                if (nightLoad >= 6 && current < required - 1) continue;
 
                 if (current >= required) break;
 
@@ -698,7 +731,6 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                 shiftAssignmentRepository.countByRosterDayAndShiftCode(
                                         day.getId(), GRAVEYARD);
 
-                        // block only if graveyard fully empty
                         if (liveGrave == 0 && siblingRequired > 2) {
                             continue;
                         }
@@ -713,7 +745,6 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
                         int nightRequired = requiredFor(day, NIGHT);
 
-                        // secure Night first
                         if (liveNight < nightRequired) {
                             continue;
                         }
@@ -737,6 +768,8 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                     .build();
 
                     validationService.validateHard(ctx);
+
+                    // 🔴 REVIEWER GUARD
                     boolean hasReviewer =
                             shiftAssignmentRepository
                                     .findByRosterDayAndShiftCode(day.getId(), code)
@@ -746,6 +779,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                     if (!hasReviewer && !reviewerUtil.isReviewer(e)) {
                         continue;
                     }
+
                     assignmentService.assign(ctx);
 
                     assignedToday.add(e.getId());
@@ -758,7 +792,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                 }
             }
 
-            // ===== FALLBACK =====
+            // ================= FALLBACK =================
             if (current < required) {
 
                 List<Employee> fallback =
@@ -771,12 +805,10 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                     boolean aReviewer = reviewerUtil.isReviewer(a);
                                     boolean bReviewer = reviewerUtil.isReviewer(b);
 
-                                    // 1️⃣ Reviewer first (DO NOT TOUCH)
                                     if (aReviewer != bReviewer) {
                                         return aReviewer ? -1 : 1;
                                     }
 
-                                    // 2️⃣ 🔥 NIGHT FAMILY FAIRNESS (ADD THIS)
                                     long aNightLoad =
                                             shiftAssignmentRepository.countRecentShiftType(
                                                     a.getId(), NIGHT, day.getDayDate(), day.getDayDate().minusDays(14))
@@ -795,7 +827,6 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                         return Long.compare(aNightLoad, bNightLoad);
                                     }
 
-                                    // 3️⃣ Weekly load (keep existing)
                                     return Long.compare(
                                             shiftAssignmentRepository.sumWeeklyHours(a.getId(), weekId),
                                             shiftAssignmentRepository.sumWeeklyHours(b.getId(), weekId)
@@ -805,25 +836,23 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
                 for (Employee e : fallback) {
 
-                    // 🔴 FAIRNESS SOFT BLOCK
-                    long nightLoad =
+                    long totalNightFamily =
                             shiftAssignmentRepository.countRecentShiftType(
-                                    e.getId(),
-                                    ShiftCode.NIGHT,
-                                    day.getDayDate(),
-                                    day.getDayDate().minusDays(14)
-                            )
+                                    e.getId(), NIGHT, day.getDayDate(), rosterStartDate)
                                     +
                                     shiftAssignmentRepository.countRecentShiftType(
-                                            e.getId(),
-                                            ShiftCode.GRAVEYARD,
-                                            day.getDayDate(),
-                                            day.getDayDate().minusDays(14)
-                                    );
-                    // avoid overused employees unless necessary
-                    if (nightLoad >= 5 && current < required - 1) {
-                        continue;
-                    }
+                                            e.getId(), GRAVEYARD, day.getDayDate(), rosterStartDate);
+
+                    long nightLoad =
+                            shiftAssignmentRepository.countRecentShiftType(
+                                    e.getId(), NIGHT, day.getDayDate(), day.getDayDate().minusDays(14))
+                                    +
+                                    shiftAssignmentRepository.countRecentShiftType(
+                                            e.getId(), GRAVEYARD, day.getDayDate(), day.getDayDate().minusDays(14));
+
+                    // 🔥 SAME FAIRNESS AS MAIN LOOP (CRITICAL FIX)
+                    if (totalNightFamily >= 16 && current < required - 1) continue;
+                    if (nightLoad >= 6 && current < required - 1) continue;
 
                     if (current >= required) break;
 
@@ -833,9 +862,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                 shiftAssignmentRepository.countByRosterDayAndShiftCode(
                                         day.getId(), code);
 
-                        if (liveCurrent >= required) {
-                            break;
-                        }
+                        if (liveCurrent >= required) break;
 
                         RosterContext ctx =
                                 contextBuilder.build(
@@ -847,6 +874,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                         .build();
 
                         validationService.validateHard(ctx);
+
                         boolean hasReviewer =
                                 shiftAssignmentRepository
                                         .findByRosterDayAndShiftCode(day.getId(), code)
@@ -856,6 +884,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                         if (!hasReviewer && !reviewerUtil.isReviewer(e)) {
                             continue;
                         }
+
                         assignmentService.assign(ctx);
 
                         assignedToday.add(e.getId());
@@ -870,7 +899,6 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
             }
         }
     }
-
 
     // =====================================================
     // HELPER METHODS (UNCHANGED)
