@@ -736,8 +736,8 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                 );
 
                 // 🔥 FINAL FAIRNESS LOGIC
-                if (totalNightFamily >= 14 && current < required - 2) continue;
-                if (nightLoad >= 5 && current < required - 2) continue;
+                if (totalNightFamily >= 14 && current < required - 1) continue;
+                if (nightLoad >= 5 && current < required - 1) continue;
 
                 if (current >= required) break;
 
@@ -871,8 +871,8 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                             e.getId(), GRAVEYARD, day.getDayDate(), day.getDayDate().minusDays(14));
 
                     // 🔥 SAME FAIRNESS AS MAIN LOOP (CRITICAL FIX)
-                    if (totalNightFamily >= 14 && current < required - 2) continue;
-                    if (nightLoad >= 5 && current < required - 2) continue;
+                    if (totalNightFamily >= 14 && current < required - 1) continue;
+                    if (nightLoad >= 5 && current < required - 1) continue;
 
                     if (current >= required) break;
 
