@@ -602,6 +602,8 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
     // =====================================================
     private void performNightRecovery(RosterDay day, Set<Long> assignedToday) {
 
+        Long weekId = day.getRosterWeek().getId();
+
         List<ShiftCode> nightOrder =
                 List.of(NIGHT, GRAVEYARD);
 
@@ -630,17 +632,34 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                 boolean aReviewer = reviewerUtil.isReviewer(a);
                                 boolean bReviewer = reviewerUtil.isReviewer(b);
 
-                                // 1️⃣ Prefer reviewer first
+                                // 1️⃣ Reviewer first (DO NOT TOUCH)
                                 if (aReviewer != bReviewer) {
                                     return aReviewer ? -1 : 1;
                                 }
 
-                                // 2️⃣ Then fairness (weekly hours)
+                                // 2️⃣ 🔥 NIGHT FAMILY FAIRNESS (ADD THIS)
+                                long aNightLoad =
+                                        shiftAssignmentRepository.countRecentShiftType(
+                                                a.getId(), NIGHT, day.getDayDate(), day.getDayDate().minusDays(14))
+                                                +
+                                                shiftAssignmentRepository.countRecentShiftType(
+                                                        a.getId(), GRAVEYARD, day.getDayDate(), day.getDayDate().minusDays(14));
+
+                                long bNightLoad =
+                                        shiftAssignmentRepository.countRecentShiftType(
+                                                b.getId(), NIGHT, day.getDayDate(), day.getDayDate().minusDays(14))
+                                                +
+                                                shiftAssignmentRepository.countRecentShiftType(
+                                                        b.getId(), GRAVEYARD, day.getDayDate(), day.getDayDate().minusDays(14));
+
+                                if (aNightLoad != bNightLoad) {
+                                    return Long.compare(aNightLoad, bNightLoad);
+                                }
+
+                                // 3️⃣ Weekly load (keep existing)
                                 return Long.compare(
-                                        shiftAssignmentRepository.sumWeeklyHours(
-                                                a.getId(), day.getRosterWeek().getId()),
-                                        shiftAssignmentRepository.sumWeeklyHours(
-                                                b.getId(), day.getRosterWeek().getId())
+                                        shiftAssignmentRepository.sumWeeklyHours(a.getId(), weekId),
+                                        shiftAssignmentRepository.sumWeeklyHours(b.getId(), weekId)
                                 );
                             })
                             .toList();
@@ -731,17 +750,34 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                     boolean aReviewer = reviewerUtil.isReviewer(a);
                                     boolean bReviewer = reviewerUtil.isReviewer(b);
 
-                                    // 1️⃣ Prefer reviewer first
+                                    // 1️⃣ Reviewer first (DO NOT TOUCH)
                                     if (aReviewer != bReviewer) {
                                         return aReviewer ? -1 : 1;
                                     }
 
-                                    // 2️⃣ Then fairness (weekly hours)
+                                    // 2️⃣ 🔥 NIGHT FAMILY FAIRNESS (ADD THIS)
+                                    long aNightLoad =
+                                            shiftAssignmentRepository.countRecentShiftType(
+                                                    a.getId(), NIGHT, day.getDayDate(), day.getDayDate().minusDays(14))
+                                                    +
+                                                    shiftAssignmentRepository.countRecentShiftType(
+                                                            a.getId(), GRAVEYARD, day.getDayDate(), day.getDayDate().minusDays(14));
+
+                                    long bNightLoad =
+                                            shiftAssignmentRepository.countRecentShiftType(
+                                                    b.getId(), NIGHT, day.getDayDate(), day.getDayDate().minusDays(14))
+                                                    +
+                                                    shiftAssignmentRepository.countRecentShiftType(
+                                                            b.getId(), GRAVEYARD, day.getDayDate(), day.getDayDate().minusDays(14));
+
+                                    if (aNightLoad != bNightLoad) {
+                                        return Long.compare(aNightLoad, bNightLoad);
+                                    }
+
+                                    // 3️⃣ Weekly load (keep existing)
                                     return Long.compare(
-                                            shiftAssignmentRepository.sumWeeklyHours(
-                                                    a.getId(), day.getRosterWeek().getId()),
-                                            shiftAssignmentRepository.sumWeeklyHours(
-                                                    b.getId(), day.getRosterWeek().getId())
+                                            shiftAssignmentRepository.sumWeeklyHours(a.getId(), weekId),
+                                            shiftAssignmentRepository.sumWeeklyHours(b.getId(), weekId)
                                     );
                                 })
                                 .toList();
@@ -1235,10 +1271,41 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                         donorCode,
                                         day.getDayDate())
                                 .stream()
-                                .sorted(Comparator.comparingLong(
-                                        e -> shiftAssignmentRepository
-                                                .sumWeeklyHours(e.getId(), weekId)))
-                                .toList();
+                                .sorted((a, b) -> {
+
+                                    // 🔴 1️⃣ REVIEWER PRIORITY (ADD THIS)
+                                    boolean aReviewer = reviewerUtil.isReviewer(a);
+                                    boolean bReviewer = reviewerUtil.isReviewer(b);
+
+                                    if (aReviewer != bReviewer) {
+                                        return aReviewer ? -1 : 1;
+                                    }
+
+                                    // 🔴 2️⃣ NIGHT FAMILY FAIRNESS (KEEP YOUR EXISTING)
+                                    long aNightLoad =
+                                            shiftAssignmentRepository.countRecentShiftType(
+                                                    a.getId(), NIGHT, day.getDayDate(), day.getDayDate().minusDays(14))
+                                                    +
+                                                    shiftAssignmentRepository.countRecentShiftType(
+                                                            a.getId(), GRAVEYARD, day.getDayDate(), day.getDayDate().minusDays(14));
+
+                                    long bNightLoad =
+                                            shiftAssignmentRepository.countRecentShiftType(
+                                                    b.getId(), NIGHT, day.getDayDate(), day.getDayDate().minusDays(14))
+                                                    +
+                                                    shiftAssignmentRepository.countRecentShiftType(
+                                                            b.getId(), GRAVEYARD, day.getDayDate(), day.getDayDate().minusDays(14));
+
+                                    if (aNightLoad != bNightLoad) {
+                                        return Long.compare(aNightLoad, bNightLoad);
+                                    }
+
+                                    // 🔴 3️⃣ WEEKLY LOAD (KEEP)
+                                    return Long.compare(
+                                            shiftAssignmentRepository.sumWeeklyHours(a.getId(), weekId),
+                                            shiftAssignmentRepository.sumWeeklyHours(b.getId(), weekId)
+                                    );
+                                })                                .toList();
 
                 ShiftType targetType = targetCfg.getShiftType();
 
