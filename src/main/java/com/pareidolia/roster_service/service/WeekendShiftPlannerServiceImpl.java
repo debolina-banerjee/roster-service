@@ -104,6 +104,9 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
             ShiftCode sc = config.getShiftType().getCode();
             int required = config.getRequiredResources();
+            if (isWeekend && sc == EVENING && required == 4) {
+                required = 3;
+            }
 
             if (required == 0 || sc == ON_DUTY) continue;
 
@@ -202,7 +205,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                         totalNightFamilyRemaining > 0;
 
                 boolean malePoolTooTight =
-                        remainingMalePool <= totalNightFamilyRemaining;
+                        remainingMalePool < totalNightFamilyRemaining;
 
 //                if (sc != NIGHT && sc != GRAVEYARD
 //                        && nightFamilyCritical
@@ -764,13 +767,16 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                 // 🔥 FINAL FAIRNESS LOGIC
 //                if (totalNightFamily >= 14 && current < required - 1) continue;
 //                if (nightLoad >= 5 && current < required - 1) continue;
-
                 if (code == ShiftCode.GRAVEYARD) {
 
-                    if (totalNightFamily >= 18 && current < required - 1) continue;
-                    if (nightLoad >= 7 && current < required - 1) continue;
+                    boolean lastSlot = current >= required - 1;
 
-                } else {
+                    if (!lastSlot) {
+                        if (totalNightFamily >= 18) continue;
+                        if (nightLoad >= 7) continue;
+                    }
+
+                }else {
 
                     if (totalNightFamily >= 14 && current < required - 1) continue;
                     if (nightLoad >= 5 && current < required - 1) continue;
@@ -910,13 +916,26 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                     // 🔥 SAME FAIRNESS AS MAIN LOOP (CRITICAL FIX)
 //                    if (totalNightFamily >= 14 && current < required - 1) continue;
 //                    if (nightLoad >= 5 && current < required - 1) continue;
+//
+//                    if (code == ShiftCode.GRAVEYARD) {
+//
+//                        if (totalNightFamily >= 18 && current < required - 1) continue;
+//                        if (nightLoad >= 7 && current < required - 1) continue;
+//
+//                    }
 
                     if (code == ShiftCode.GRAVEYARD) {
 
-                        if (totalNightFamily >= 18 && current < required - 1) continue;
-                        if (nightLoad >= 7 && current < required - 1) continue;
+                        boolean lastSlot = current >= required - 1;
 
-                    } else {
+                        if (!lastSlot) {
+                            if (totalNightFamily >= 18) continue;
+                            if (nightLoad >= 7) continue;
+                        }
+
+                    }
+
+                    else {
 
                         if (totalNightFamily >= 14 && current < required - 1) continue;
                         if (nightLoad >= 5 && current < required - 1) continue;

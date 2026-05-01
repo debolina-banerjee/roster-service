@@ -197,6 +197,33 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 
                 if (assignedToday.contains(emp.getId())) continue;
 
+
+                // ================= WEEKEND PROTECTION (CRITICAL FIX) =================
+
+// Applies Mon–Thu only
+                boolean weekendAhead =
+                        rosterDay.getDayDate().getDayOfWeek().getValue() <= 4;
+
+                long remainingMalePool =
+                        employees.stream()
+                                .filter(e -> !assignedToday.contains(e.getId()))
+                                .filter(e -> e.getGender() != Gender.FEMALE)
+                                .count();
+
+// Weekend needs 7 (5 GY + 2 Night)
+                int weekendNightDemand = 7;
+
+// 🚨 DO NOT consume male pool for non-night shifts
+                boolean reserveForWeekend =
+                        weekendAhead &&
+                                remainingMalePool <= weekendNightDemand + 1;
+
+                if (reserveForWeekend
+                        && sc != NIGHT
+                        && sc != GRAVEYARD) {
+                    continue;
+                }
+
                 int current = assignedPerShift.get(sc);
                 if (current >= required) break;
 
@@ -217,7 +244,7 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                         graveyardRequired - assignedPerShift.getOrDefault(GRAVEYARD, 0);
 
                 // 🚨 HARD GRAVEYARD RESERVATION
-                long remainingMalePool =
+                remainingMalePool =
                         employees.stream()
                                 .filter(e -> !assignedToday.contains(e.getId()))
                                 .filter(e -> e.getGender() != Gender.FEMALE)
@@ -235,7 +262,7 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                         totalNightFamilyRemaining > 0;
 
                 boolean malePoolTooTight =
-                        remainingMalePool <= totalNightFamilyRemaining;
+                        remainingMalePool < totalNightFamilyRemaining;
 
 //                if (sc != NIGHT && sc != GRAVEYARD
 //                        && nightFamilyCritical
