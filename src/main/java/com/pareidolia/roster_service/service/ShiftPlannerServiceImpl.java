@@ -121,19 +121,19 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 
             //Final addition - 2
 
-            if (donorDay &&
-                    (sc == NIGHT || sc == GRAVEYARD)) {
-
-                int totalNightFamily =
-                        getRequired(shiftConfigs, NIGHT)
-                                + getRequired(shiftConfigs, GRAVEYARD);
-
-                if (totalNightFamily == 8) {
-                    if (sc == GRAVEYARD) {
-                        required = required - 1;
-                    }
-                }
-            }
+//            if (donorDay &&
+//                    (sc == NIGHT || sc == GRAVEYARD)) {
+//
+//                int totalNightFamily =
+//                        getRequired(shiftConfigs, NIGHT)
+//                                + getRequired(shiftConfigs, GRAVEYARD);
+//
+//                if (totalNightFamily == 8) {
+//                    if (sc == GRAVEYARD) {
+//                        required = required - 1;
+//                    }
+//                }
+//            }
 
             if (required == 0 || sc == ON_DUTY) continue;
 
@@ -371,6 +371,20 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                 if ((sc == NIGHT || sc == GRAVEYARD)
                         && emp.getGender() == Gender.FEMALE)
                     continue;
+
+                // 🔴 HARD REVIEWER GUARD — PASS 1
+                if (sc == NIGHT) {
+
+                    boolean hasReviewer =
+                            shiftAssignmentRepository
+                                    .findByRosterDayAndShiftCode(rosterDay.getId(), NIGHT)
+                                    .stream()
+                                    .anyMatch(a -> reviewerUtil.isReviewer(a.getEmployee()));
+
+                    if (!hasReviewer && !reviewerUtil.isReviewer(emp)) {
+                        continue;
+                    }
+                }
 
                 try {
                     validationService.validate(ctx);
@@ -827,9 +841,23 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                     }
 
                     validationService.validateHard(ctx);
+
+
+                    // 🔴 HARD REVIEWER ENFORCEMENT (only for first slot)
+                    boolean hasReviewer =
+                            shiftAssignmentRepository
+                                    .findByRosterDayAndShiftCode(day.getId(), code)
+                                    .stream()
+                                    .anyMatch(a -> reviewerUtil.isReviewer(a.getEmployee()));
+
+                    if (!hasReviewer && !reviewerUtil.isReviewer(e)) {
+                        continue;
+                    }
                     assignmentService.assign(ctx);
 
                     // ⭐⭐⭐ FIX #3 — missing earlier
+
+
                     assignedToday.add(e.getId());
                     // current++;
 
@@ -940,6 +968,16 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                         }
 
                         validationService.validateHard(ctx);
+
+                        boolean hasReviewer =
+                                shiftAssignmentRepository
+                                        .findByRosterDayAndShiftCode(day.getId(), code)
+                                        .stream()
+                                        .anyMatch(a -> reviewerUtil.isReviewer(a.getEmployee()));
+
+                        if (!hasReviewer && !reviewerUtil.isReviewer(e)) {
+                            continue;
+                        }
                         assignmentService.assign(ctx);
 
                         assignedToday.add(e.getId());
@@ -1441,6 +1479,22 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                         // 🔥 CRITICAL FIX — MOVE SHIFT
                         // ===============================
 
+
+                        // 🔴 PROTECT NIGHT REVIEWER DURING REBALANCE
+                        if (targetCode == NIGHT || targetCode == GRAVEYARD) {
+                            boolean hasReviewer =
+                                    shiftAssignmentRepository
+                                            .findByRosterDayAndShiftCode(day.getId(), targetCode)
+                                            .stream()
+                                            .anyMatch(a ->
+                                                    reviewerUtil.isReviewer(a.getEmployee())
+                                                            && !a.getEmployee().getId().equals(emp.getId()) // 🔥 exclude moving employee
+                                            );
+
+                            if (!hasReviewer && !reviewerUtil.isReviewer(emp)) {
+                                continue;
+                            }
+                        }
 
 
                         // 2️⃣ ASSIGN to target shift

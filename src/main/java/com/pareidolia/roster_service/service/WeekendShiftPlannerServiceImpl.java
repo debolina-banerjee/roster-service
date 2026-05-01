@@ -339,7 +339,23 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                         && emp.getGender() == Gender.FEMALE)
                     continue;
 
+                // 🔴 HARD REVIEWER GUARD — PASS 1
+                if (sc == NIGHT) {
+
+                    boolean hasReviewer =
+                            shiftAssignmentRepository
+                                    .findByRosterDayAndShiftCode(rosterDay.getId(), NIGHT)
+                                    .stream()
+                                    .anyMatch(a -> reviewerUtil.isReviewer(a.getEmployee()));
+
+                    if (!hasReviewer && !reviewerUtil.isReviewer(emp)) {
+                        continue;
+                    }
+                }
+
                 try {
+
+
                     validationService.validate(ctx);
                     assignmentService.assign(ctx);
 
@@ -681,6 +697,15 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                     .build();
 
                     validationService.validateHard(ctx);
+                    boolean hasReviewer =
+                            shiftAssignmentRepository
+                                    .findByRosterDayAndShiftCode(day.getId(), code)
+                                    .stream()
+                                    .anyMatch(a -> reviewerUtil.isReviewer(a.getEmployee()));
+
+                    if (!hasReviewer && !reviewerUtil.isReviewer(e)) {
+                        continue;
+                    }
                     assignmentService.assign(ctx);
 
                     assignedToday.add(e.getId());
@@ -745,6 +770,15 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                         .build();
 
                         validationService.validateHard(ctx);
+                        boolean hasReviewer =
+                                shiftAssignmentRepository
+                                        .findByRosterDayAndShiftCode(day.getId(), code)
+                                        .stream()
+                                        .anyMatch(a -> reviewerUtil.isReviewer(a.getEmployee()));
+
+                        if (!hasReviewer && !reviewerUtil.isReviewer(e)) {
+                            continue;
+                        }
                         assignmentService.assign(ctx);
 
                         assignedToday.add(e.getId());
@@ -1250,7 +1284,21 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                         // ===============================
                         // 🔥 CRITICAL FIX — MOVE SHIFT
                         // ===============================
+                        // 🔴 PROTECT NIGHT REVIEWER DURING REBALANCE
+                        if (targetCode == NIGHT|| targetCode == GRAVEYARD) {
 
+                            boolean hasReviewer =
+                                    shiftAssignmentRepository
+                                            .findByRosterDayAndShiftCode(day.getId(), targetCode)
+                                            .stream()
+                                            .anyMatch(a ->
+                                                    reviewerUtil.isReviewer(a.getEmployee())
+                                                            && !a.getEmployee().getId().equals(emp.getId()) // 🔥 exclude moving employee
+                                            );
+                            if (!hasReviewer && !reviewerUtil.isReviewer(emp)) {
+                                continue;
+                            }
+                        }
 
                         // 2️⃣ ASSIGN to target shift
                         RosterContext ctx =

@@ -172,4 +172,18 @@ public interface ShiftAssignmentRepository
             Long rosterDayId,
             ShiftCode shiftCode
     );
+
+
+    @Query("""
+SELECT sa
+FROM ShiftAssignment sa
+WHERE sa.rosterDay.id = :rosterDayId
+AND sa.shiftType.code = :shiftCode
+""")
+    List<ShiftAssignment> findByRosterDayAndShiftCode(
+            Long rosterDayId,
+            ShiftCode shiftCode
+    );
 }
+
+
