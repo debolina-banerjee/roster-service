@@ -161,6 +161,28 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 
             for (Employee emp : employees) {
 
+                // 🔥 NIGHT FAMILY FAIRNESS (SOFT SKIP)
+                if (sc == NIGHT || sc == GRAVEYARD) {
+
+                    long nightLoad =
+                            shiftAssignmentRepository.countRecentShiftType(
+                                    emp.getId(), NIGHT,
+                                    rosterDay.getDayDate(),
+                                    rosterDay.getDayDate().minusDays(14)
+                            )
+                                    +
+                                    shiftAssignmentRepository.countRecentShiftType(
+                                            emp.getId(), GRAVEYARD,
+                                            rosterDay.getDayDate(),
+                                            rosterDay.getDayDate().minusDays(14)
+                                    );
+
+                    // allow last slot, skip only earlier
+                    if (nightLoad >= 5 && assignedPerShift.get(sc) < required - 1) {
+                        continue;
+                    }
+                }
+
                 if (assignedToday.contains(emp.getId())) continue;
 
                 int current = assignedPerShift.get(sc);
