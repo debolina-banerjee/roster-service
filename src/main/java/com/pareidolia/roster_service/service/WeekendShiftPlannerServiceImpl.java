@@ -666,6 +666,27 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
             for (Employee e : candidates) {
 
+                long nightLoad =
+                        shiftAssignmentRepository.countRecentShiftType(
+                                e.getId(),
+                                ShiftCode.NIGHT,
+                                day.getDayDate(),
+                                day.getDayDate().minusDays(14)
+                        )
+                                +
+                                shiftAssignmentRepository.countRecentShiftType(
+                                        e.getId(),
+                                        ShiftCode.GRAVEYARD,
+                                        day.getDayDate(),
+                                        day.getDayDate().minusDays(14)
+                                );
+
+// Soft fairness block
+                if (nightLoad >= 6 && current < required - 1) {
+                    continue;
+                }
+
+
                 if (current >= required) break;
 
                 try {
@@ -784,6 +805,26 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
                 for (Employee e : fallback) {
 
+                    // 🔴 FAIRNESS SOFT BLOCK
+                    long nightLoad =
+                            shiftAssignmentRepository.countRecentShiftType(
+                                    e.getId(),
+                                    ShiftCode.NIGHT,
+                                    day.getDayDate(),
+                                    day.getDayDate().minusDays(14)
+                            )
+                                    +
+                                    shiftAssignmentRepository.countRecentShiftType(
+                                            e.getId(),
+                                            ShiftCode.GRAVEYARD,
+                                            day.getDayDate(),
+                                            day.getDayDate().minusDays(14)
+                                    );
+                    // avoid overused employees unless necessary
+                    if (nightLoad >= 5 && current < required - 1) {
+                        continue;
+                    }
+
                     if (current >= required) break;
 
                     try {
@@ -901,6 +942,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
         ShiftType eveningType = getShiftType(day, EVENING);
 
         for (Employee e : candidates) {
+
 
             if (shortage <= 0) break;
 
