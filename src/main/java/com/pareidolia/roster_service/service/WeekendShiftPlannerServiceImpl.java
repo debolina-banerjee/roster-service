@@ -101,6 +101,18 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                                 e.getId(), ShiftCode.GRAVEYARD,
                                                 rosterDay.getDayDate(),
                                                 rosterDay.getDayDate().minusDays(14))
+
+
+                        )
+
+                        // 🔥 2️⃣ ADD THIS — Early Morning fairness
+                        .thenComparingLong(e ->
+                                shiftAssignmentRepository.countRecentShiftType(
+                                        e.getId(),
+                                        ShiftCode.EARLY_MORNING,
+                                        rosterDay.getDayDate(),
+                                        rosterDay.getDayDate().minusDays(14)
+                                )
                         )
                         .thenComparingLong(e ->
                                 shiftAssignmentRepository.sumWeeklyHours(

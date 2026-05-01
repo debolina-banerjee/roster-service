@@ -113,6 +113,16 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                                                 rosterDay.getDayDate().minusDays(14))
                         )
 
+                        // 🔥 2️⃣ ADD THIS — Early Morning fairness
+                        .thenComparingLong(e ->
+                                shiftAssignmentRepository.countRecentShiftType(
+                                        e.getId(),
+                                        ShiftCode.EARLY_MORNING,
+                                        rosterDay.getDayDate(),
+                                        rosterDay.getDayDate().minusDays(14)
+                                )
+                        )
+
                         // Existing logic (SECONDARY)
                         .thenComparingLong(e ->
                                 shiftAssignmentRepository.sumWeeklyHours(
