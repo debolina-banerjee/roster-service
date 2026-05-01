@@ -307,6 +307,20 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                     continue;
                 }
 
+
+                // 🚨 SOFT EARLY BALANCE
+                long recentEarlyCount =
+                        shiftAssignmentRepository.countRecentShiftType(
+                                emp.getId(),
+                                EARLY_MORNING,
+                                rosterDay.getDayDate(),
+                                rosterDay.getDayDate().minusDays(14)
+                        );
+
+                if (sc == EARLY_MORNING && recentEarlyCount >= 4) {
+                    continue;
+                }
+
                 int nightRequired = getRequired(shiftConfigs, NIGHT);
                 int graveRequired = getRequired(shiftConfigs, GRAVEYARD);
 
