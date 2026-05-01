@@ -156,7 +156,26 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                                             rosterDay.getRosterWeek().getWeekStartDate()
                                     );
 
-                    if (totalNightFamily >= 16 && assignedPerShift.get(sc) < required - 1) {
+                    long nightLoad =
+                            shiftAssignmentRepository.countRecentShiftType(
+                                    emp.getId(),
+                                    NIGHT,
+                                    rosterDay.getDayDate(),
+                                    rosterDay.getDayDate().minusDays(14)
+                            )
+                                    +
+                                    shiftAssignmentRepository.countRecentShiftType(
+                                            emp.getId(),
+                                            GRAVEYARD,
+                                            rosterDay.getDayDate(),
+                                            rosterDay.getDayDate().minusDays(14)
+                                    );
+
+                    if (nightLoad >= 5 && assignedPerShift.get(sc) < required - 2) {
+                        continue;
+                    }
+
+                    if (totalNightFamily >= 14 && assignedPerShift.get(sc) < required - 2) {
                         continue;
                     }
                 }
@@ -541,7 +560,7 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 // soft skip only if not critical and not dragged
                     if (!criticalShift
                             && !ctx.isDraggedOverride()
-                            && recentSameShiftCount >= 8) {
+                            && recentSameShiftCount >= 5) {
 
                         continue; // try next employee first
                     }
@@ -731,8 +750,8 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                                         e.getId(), GRAVEYARD, day.getDayDate(), rosterStartDate);
 
                 // 🔥 FAIRNESS CONTROL (fixed logic)
-                if (totalNightFamily >= 16 && current < required - 1) continue;
-                if (nightLoad >= 6 && current < required - 1) continue;
+                if (totalNightFamily >= 14 && current < required - 2) continue;
+                if (nightLoad >= 5 && current < required - 2) continue;
 
                 if (current >= required) break;
 
@@ -779,7 +798,7 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                                 .toList();
 
                 for (Employee e : desperatePool) {
-
+                    if (current >= required - 1) break;
                     // 🔹 LOCAL FAIRNESS
                     long nightLoad =
                             shiftAssignmentRepository.countRecentShiftType(
@@ -796,8 +815,8 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                                     shiftAssignmentRepository.countRecentShiftType(
                                             e.getId(), GRAVEYARD, day.getDayDate(), rosterStartDate);
 
-                    if (totalNightFamily >= 16 && current < required - 1) continue;
-                    if (nightLoad >= 6 && current < required - 1) continue;
+                    if (totalNightFamily >= 14 && current < required - 2) continue;
+                    if (nightLoad >= 5 && current < required - 2) continue;
 
                     if (current >= required) break;
 
