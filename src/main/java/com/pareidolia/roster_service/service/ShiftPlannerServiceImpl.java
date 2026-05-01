@@ -113,16 +113,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                                                 rosterDay.getDayDate().minusDays(14))
                         )
 
-                        // 🔥 2️⃣ ADD THIS — Early Morning fairness
-                        .thenComparingLong(e ->
-                                shiftAssignmentRepository.countRecentShiftType(
-                                        e.getId(),
-                                        ShiftCode.EARLY_MORNING,
-                                        rosterDay.getDayDate(),
-                                        rosterDay.getDayDate().minusDays(14)
-                                )
-                        )
-
                         // Existing logic (SECONDARY)
                         .thenComparingLong(e ->
                                 shiftAssignmentRepository.sumWeeklyHours(
@@ -304,20 +294,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                         (sc == NIGHT || sc == GRAVEYARD);
 
                 if (!isNightFamily && weeklyHours >= emp.getMaxWeeklyHours()) {
-                    continue;
-                }
-
-
-                // 🚨 SOFT EARLY BALANCE
-                long recentEarlyCount =
-                        shiftAssignmentRepository.countRecentShiftType(
-                                emp.getId(),
-                                EARLY_MORNING,
-                                rosterDay.getDayDate(),
-                                rosterDay.getDayDate().minusDays(14)
-                        );
-
-                if (sc == EARLY_MORNING && recentEarlyCount >= 4) {
                     continue;
                 }
 
