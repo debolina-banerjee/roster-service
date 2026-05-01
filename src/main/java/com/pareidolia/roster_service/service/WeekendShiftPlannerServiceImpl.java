@@ -141,12 +141,23 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                             rosterDay.getDayDate().minusDays(14)
                                     );
 
-                    if (nightLoad >= 5 && assignedPerShift.get(sc) < required - 2) {
+//                    if (nightLoad >= 5 && assignedPerShift.get(sc) < required - 2) {
+//                        continue;
+//                    }
+//
+//                    if (totalNightFamily >= 14
+//                            && assignedPerShift.get(sc) < required - 2) {
+//                        continue;
+//                    }
+
+                    boolean lastTwoSlots =
+                            assignedPerShift.get(sc) >= required - 2;
+
+                    if (nightLoad >= 5 && !lastTwoSlots) {
                         continue;
                     }
 
-                    if (totalNightFamily >= 14
-                            && assignedPerShift.get(sc) < required - 2) {
+                    if (totalNightFamily >= 14 && !lastTwoSlots) {
                         continue;
                     }
                 }
@@ -202,7 +213,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
                 //Commented from loc 152 - New Addition - 2 - replacement
 
-                if (!isWeekend &&
+                if (
                         sc != NIGHT && sc != GRAVEYARD
                         && nightFamilyCritical
                         && malePoolTooTight) {
@@ -226,7 +237,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                 //New Addition - 3
 
 
-                if (!isWeekend &&
+                if (
                         sc != EVENING &&
                         sc != EARLY_MORNING &&
                         eveningRemaining > 0) {
@@ -241,11 +252,23 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                     }
                 }
 
+//                boolean protectGraveyard =
+//                        (sc != GRAVEYARD
+//                                && eveningRemaining == 0
+//                                && graveyardRemaining > 0
+//                                && remainingEmployees <= graveyardRemaining);
+
+                long usableMalePool =
+                        employees.stream()
+                                .filter(e -> !assignedToday.contains(e.getId()))
+                                .filter(e -> e.getGender() != Gender.FEMALE)
+                                .count();
+
                 boolean protectGraveyard =
                         (sc != GRAVEYARD
                                 && eveningRemaining == 0
                                 && graveyardRemaining > 0
-                                && remainingEmployees <= graveyardRemaining);
+                                && usableMalePool <= graveyardRemaining);
 
                 if (protectGraveyard) continue;
 
@@ -271,7 +294,10 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                 //Commented line no 228 replaced by
                 //New Addition - 4
 
-                if (!isWeekend && protectEarly) continue;
+                boolean lastEarlySlots =
+                        assignedPerShift.get(EARLY_MORNING) >= earlyRequired - 2;
+
+                if (protectEarly && !lastEarlySlots) continue;
 
                 long weeklyHours =
                         shiftAssignmentRepository.sumWeeklyHours(emp.getId(), weekId);
@@ -356,7 +382,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                             );
 
                     // 🔥 RELAXATION LOGIC — ALLOW IF RESTED (W/O)
-                    if (recentGraveyards >= 3 && !hadRecentWO) {
+                    if (recentGraveyards >= 4 && !hadRecentWO) {
 
                         boolean criticalShortage =
                                 liveCurrent < graveyardRequired;
