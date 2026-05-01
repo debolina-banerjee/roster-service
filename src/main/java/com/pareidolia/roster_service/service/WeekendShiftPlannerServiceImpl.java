@@ -80,13 +80,31 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
         Collections.shuffle(employees, new Random(weekId));
 
+//        employees.sort(
+//                Comparator
+//                        .comparingLong(
+//                                (Employee e) -> shiftAssignmentRepository
+//                                        .sumWeeklyHours(e.getId(), weekId)
+//                        )
+//                        .thenComparing(e -> 0)
+//        );
+
         employees.sort(
                 Comparator
-                        .comparingLong(
-                                (Employee e) -> shiftAssignmentRepository
-                                        .sumWeeklyHours(e.getId(), weekId)
+                        .comparingLong((Employee e) ->
+                                shiftAssignmentRepository.countRecentShiftType(
+                                        e.getId(), ShiftCode.NIGHT,
+                                        rosterDay.getDayDate(),
+                                        rosterDay.getDayDate().minusDays(14))
+                                        +
+                                        shiftAssignmentRepository.countRecentShiftType(
+                                                e.getId(), ShiftCode.GRAVEYARD,
+                                                rosterDay.getDayDate(),
+                                                rosterDay.getDayDate().minusDays(14))
                         )
-                        .thenComparing(e -> 0)
+                        .thenComparingLong(e ->
+                                shiftAssignmentRepository.sumWeeklyHours(
+                                        e.getId(), weekId))
         );
 
         Set<Long> assignedToday = new HashSet<>();
