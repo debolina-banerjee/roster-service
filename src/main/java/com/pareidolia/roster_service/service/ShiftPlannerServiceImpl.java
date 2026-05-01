@@ -750,8 +750,19 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                                         e.getId(), GRAVEYARD, day.getDayDate(), rosterStartDate);
 
                 // 🔥 FAIRNESS CONTROL (fixed logic)
-                if (totalNightFamily >= 14 && current < required - 1) continue;
-                if (nightLoad >= 5 && current < required - 1) continue;
+//                if (totalNightFamily >= 14 && current < required - 1) continue;
+//                if (nightLoad >= 5 && current < required - 1) continue;
+
+                if (code == ShiftCode.GRAVEYARD) {
+
+                    if (totalNightFamily >= 18 && current < required - 1) continue;
+                    if (nightLoad >= 7 && current < required - 1) continue;
+
+                } else {
+
+                    if (totalNightFamily >= 14 && current < required - 1) continue;
+                    if (nightLoad >= 5 && current < required - 1) continue;
+                }
 
                 if (current >= required) break;
 
@@ -815,8 +826,19 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                                     shiftAssignmentRepository.countRecentShiftType(
                                             e.getId(), GRAVEYARD, day.getDayDate(), rosterStartDate);
 
-                    if (totalNightFamily >= 14 && current < required - 1) continue;
-                    if (nightLoad >= 5 && current < required - 1) continue;
+//                    if (totalNightFamily >= 14 && current < required - 1) continue;
+//                    if (nightLoad >= 5 && current < required - 1) continue;
+
+                    if (code == ShiftCode.GRAVEYARD) {
+
+                        if (totalNightFamily >= 18 && current < required - 1) continue;
+                        if (nightLoad >= 7 && current < required - 1) continue;
+
+                    } else {
+
+                        if (totalNightFamily >= 14 && current < required - 1) continue;
+                        if (nightLoad >= 5 && current < required - 1) continue;
+                    }
 
                     if (current >= required) break;
 

@@ -736,8 +736,19 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                 );
 
                 // 🔥 FINAL FAIRNESS LOGIC
-                if (totalNightFamily >= 14 && current < required - 1) continue;
-                if (nightLoad >= 5 && current < required - 1) continue;
+//                if (totalNightFamily >= 14 && current < required - 1) continue;
+//                if (nightLoad >= 5 && current < required - 1) continue;
+
+                if (code == ShiftCode.GRAVEYARD) {
+
+                    if (totalNightFamily >= 18 && current < required - 1) continue;
+                    if (nightLoad >= 7 && current < required - 1) continue;
+
+                } else {
+
+                    if (totalNightFamily >= 14 && current < required - 1) continue;
+                    if (nightLoad >= 5 && current < required - 1) continue;
+                }
 
                 if (current >= required) break;
 
@@ -871,8 +882,19 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                             e.getId(), GRAVEYARD, day.getDayDate(), day.getDayDate().minusDays(14));
 
                     // 🔥 SAME FAIRNESS AS MAIN LOOP (CRITICAL FIX)
-                    if (totalNightFamily >= 14 && current < required - 1) continue;
-                    if (nightLoad >= 5 && current < required - 1) continue;
+//                    if (totalNightFamily >= 14 && current < required - 1) continue;
+//                    if (nightLoad >= 5 && current < required - 1) continue;
+
+                    if (code == ShiftCode.GRAVEYARD) {
+
+                        if (totalNightFamily >= 18 && current < required - 1) continue;
+                        if (nightLoad >= 7 && current < required - 1) continue;
+
+                    } else {
+
+                        if (totalNightFamily >= 14 && current < required - 1) continue;
+                        if (nightLoad >= 5 && current < required - 1) continue;
+                    }
 
                     if (current >= required) break;
 
