@@ -127,6 +127,30 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
             for (Employee emp : employees) {
 
+
+                // 🔥 SOFT FEMALE PRIORITY FOR EVENING (SAFE)
+                if (sc == EVENING) {
+
+                    boolean isFemale = emp.getGender() == Gender.FEMALE;
+
+                    if (!isFemale) {
+
+                        int femaleRemaining =
+                                (int) employees.stream()
+                                        .filter(e -> !assignedToday.contains(e.getId()))
+                                        .filter(e -> e.getGender() == Gender.FEMALE)
+                                        .count();
+
+                        int eveningRemaining =
+                                required - assignedPerShift.getOrDefault(EVENING, 0);
+
+                        // 👉 If females are available, don't consume slots with males too early
+                        if (femaleRemaining > 0 && assignedPerShift.get(sc) < required - 1) {
+                            continue;
+                        }
+                    }
+                }
+
                 if (assignedToday.contains(emp.getId())) continue;
 
                 int current = assignedPerShift.get(sc);
