@@ -168,6 +168,24 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                 );
             }
 
+            // 🔥 HARD FEMALE FIRST SLOT (CRITICAL FIX)
+            if (sc == EVENING) {
+
+                boolean hasFemaleAssigned =
+                        shiftAssignmentRepository
+                                .findByRosterDayAndShiftCode(rosterDay.getId(), EVENING)
+                                .stream()
+                                .anyMatch(a -> a.getEmployee().getGender() == Gender.FEMALE);
+
+                if (!hasFemaleAssigned) {
+
+                    // Force only females for first slot
+                    workingList = workingList.stream()
+                            .filter(e -> e.getGender() == Gender.FEMALE)
+                            .toList();
+                }
+            }
+
             for (Employee emp : workingList) {
 
 
@@ -283,6 +301,11 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                             (sc != EARLY_MORNING) &&
                                     (remainingEmployees <= (eveningRemaining - 1));
                     if (eveningAtRisk) {
+
+                        // 🔥 NEW: if current shift is EARLY → block it
+                        if (sc == EARLY_MORNING) {
+                            continue;
+                        }
                         continue;
                     }
                 }

@@ -245,6 +245,8 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                             (sc != EARLY_MORNING) &&
                                     (remainingEmployees <= (eveningRemaining - 1));
                     if (eveningAtRisk) {
+
+
                         continue;
                     }
                 }
