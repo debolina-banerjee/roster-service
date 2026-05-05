@@ -303,7 +303,7 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                     if (eveningAtRisk) {
 
                         // 🔥 NEW: if current shift is EARLY → block it
-                        if (sc == EARLY_MORNING) {
+                        if (sc == EARLY_MORNING  && emp.getGender() == Gender.FEMALE) {
                             continue;
                         }
                         continue;
