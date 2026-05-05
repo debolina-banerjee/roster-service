@@ -39,7 +39,7 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
     private final ReviewerUtil reviewerUtil;
 
     private static final List<ShiftCode> PRIORITY =
-            List.of( NIGHT,GRAVEYARD,EARLY_MORNING,EVENING,ON_DUTY);
+            List.of( NIGHT,GRAVEYARD,EVENING,EARLY_MORNING,ON_DUTY);
 
     @Override
     @Transactional
