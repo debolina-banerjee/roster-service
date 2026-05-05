@@ -196,18 +196,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 
                 if (assignedToday.contains(emp.getId())) continue;
 
-
-                // 🔥 PROTECT FEMALES FOR EVENING
-                if (sc == EARLY_MORNING && emp.getGender() == Gender.FEMALE) {
-
-                    int eveningRemaining =
-                            eveningRequired - assignedPerShift.getOrDefault(EVENING, 0);
-
-                    if (eveningRemaining > 0) {
-                        continue; // reserve female for evening
-                    }
-                }
-
                 int current = assignedPerShift.get(sc);
                 if (current >= required) break;
 
