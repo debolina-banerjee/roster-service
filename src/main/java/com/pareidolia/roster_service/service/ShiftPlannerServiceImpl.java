@@ -655,6 +655,9 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                             .stream()
                             .filter(e -> !assignedToday.contains(e.getId()))
                             // ✅ DO NOT gender filter — Early allows females
+
+                            // 🔥 FIX: protect females from early consumption
+                            .filter(e -> e.getGender() != Gender.FEMALE)
                             .sorted(Comparator.comparingLong(
                                     e -> shiftAssignmentRepository.sumWeeklyHours(
                                             e.getId(),
