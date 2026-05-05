@@ -159,7 +159,16 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 
             if (required == 0 || sc == ON_DUTY) continue;
 
-            for (Employee emp : employees) {
+            List<Employee> workingList = new ArrayList<>(employees);
+
+// 🔥 ONLY FOR EVENING → prioritize females
+            if (sc == EVENING) {
+                workingList.sort(
+                        Comparator.comparing((Employee e) -> e.getGender() != Gender.FEMALE)
+                );
+            }
+
+            for (Employee emp : workingList) {
 
 
                 // 🔥 SOFT FEMALE PRIORITY FOR EVENING (SAFE)
