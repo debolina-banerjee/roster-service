@@ -1169,16 +1169,26 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 
         log.warn("Evening LAST RESCUE triggered → shortage={}", shortage);
 
+//        List<Employee> candidates =
+//                employeeRepository.findActiveNotOnLeave(day.getDayDate())
+//                        .stream()
+//                        .filter(e ->
+//                                !shiftAssignmentRepository
+//                                        .existsByEmployee_IdAndRosterDay_Id(
+//                                                e.getId(),
+//                                                day.getId()))
+//                        .sorted(Comparator.comparingLong(
+//                                e -> shiftAssignmentRepository.sumWeeklyHours(
+//                                        e.getId(),
+//                                        day.getRosterWeek().getId())))
+//                        .toList();
+
         List<Employee> candidates =
                 employeeRepository.findActiveNotOnLeave(day.getDayDate())
                         .stream()
-                        .filter(e ->
-                                !shiftAssignmentRepository
-                                        .existsByEmployee_IdAndRosterDay_Id(
-                                                e.getId(),
-                                                day.getId()))
-                        .sorted(Comparator.comparingLong(
-                                e -> shiftAssignmentRepository.sumWeeklyHours(
+                        // 🔥 PRIORITIZE FEMALES FIRST
+                        .sorted(Comparator.comparing((Employee e) -> e.getGender() != Gender.FEMALE)
+                                .thenComparingLong(e -> shiftAssignmentRepository.sumWeeklyHours(
                                         e.getId(),
                                         day.getRosterWeek().getId())))
                         .toList();
@@ -1577,6 +1587,11 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 
                 for (Employee emp : donors) {
 
+                    // 🔥 CRITICAL: DO NOT MOVE FEMALES OUT OF EVENING
+                    if (donorCode == EVENING && emp.getGender() == Gender.FEMALE) {
+                        continue;
+                    }
+
                     if (shortage <= 0) break;
 
                     try {
@@ -1764,6 +1779,11 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                         .findEmployeesByShiftCodeAndDate(EVENING, day.getDayDate());
 
         for (Employee emp : eveningPool) {
+
+            // 🔥 DO NOT STEAL FEMALES FROM EVENING
+            if (emp.getGender() == Gender.FEMALE) {
+                continue;
+            }
 
             if (shortage <= 0) break;
 
