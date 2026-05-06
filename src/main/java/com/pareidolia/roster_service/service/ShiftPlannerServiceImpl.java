@@ -159,58 +159,7 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 
             if (required == 0 || sc == ON_DUTY) continue;
 
-            List<Employee> workingList = new ArrayList<>(employees);
-
-// 🔥 ONLY FOR EVENING → prioritize females
-            if (sc == EVENING) {
-                workingList.sort(
-                        Comparator.comparing((Employee e) -> e.getGender() != Gender.FEMALE)
-                );
-            }
-
-            // 🔥 HARD FEMALE FIRST SLOT (CRITICAL FIX)
-            if (sc == EVENING) {
-
-                boolean hasFemaleAssigned =
-                        shiftAssignmentRepository
-                                .findByRosterDayAndShiftCode(rosterDay.getId(), EVENING)
-                                .stream()
-                                .anyMatch(a -> a.getEmployee().getGender() == Gender.FEMALE);
-
-                if (!hasFemaleAssigned) {
-
-                    // Force only females for first slot
-                    workingList = workingList.stream()
-                            .filter(e -> e.getGender() == Gender.FEMALE)
-                            .toList();
-                }
-            }
-
-            for (Employee emp : workingList) {
-
-
-                // 🔥 SOFT FEMALE PRIORITY FOR EVENING (SAFE)
-                if (sc == EVENING) {
-
-                    boolean isFemale = emp.getGender() == Gender.FEMALE;
-
-                    if (!isFemale) {
-
-                        int femaleRemaining =
-                                (int) employees.stream()
-                                        .filter(e -> !assignedToday.contains(e.getId()))
-                                        .filter(e -> e.getGender() == Gender.FEMALE)
-                                        .count();
-
-                        int eveningRemaining =
-                                required - assignedPerShift.getOrDefault(EVENING, 0);
-
-                        // 👉 If females are available, don't consume slots with males too early
-                        if (femaleRemaining > 0 && assignedPerShift.get(sc) < required - 1) {
-                            continue;
-                        }
-                    }
-                }
+            for (Employee emp : employees) {
 
                 if (assignedToday.contains(emp.getId())) continue;
 
@@ -301,11 +250,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                             (sc != EARLY_MORNING) &&
                                     (remainingEmployees <= (eveningRemaining - 1));
                     if (eveningAtRisk) {
-
-                        // 🔥 NEW: if current shift is EARLY → block it
-                        if (sc == EARLY_MORNING  && emp.getGender() == Gender.FEMALE) {
-                            continue;
-                        }
                         continue;
                     }
                 }
@@ -678,9 +622,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                             .stream()
                             .filter(e -> !assignedToday.contains(e.getId()))
                             // ✅ DO NOT gender filter — Early allows females
-
-                            // 🔥 FIX: protect females from early consumption
-                            .filter(e -> e.getGender() != Gender.FEMALE)
                             .sorted(Comparator.comparingLong(
                                     e -> shiftAssignmentRepository.sumWeeklyHours(
                                             e.getId(),
@@ -1169,26 +1110,16 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 
         log.warn("Evening LAST RESCUE triggered → shortage={}", shortage);
 
-//        List<Employee> candidates =
-//                employeeRepository.findActiveNotOnLeave(day.getDayDate())
-//                        .stream()
-//                        .filter(e ->
-//                                !shiftAssignmentRepository
-//                                        .existsByEmployee_IdAndRosterDay_Id(
-//                                                e.getId(),
-//                                                day.getId()))
-//                        .sorted(Comparator.comparingLong(
-//                                e -> shiftAssignmentRepository.sumWeeklyHours(
-//                                        e.getId(),
-//                                        day.getRosterWeek().getId())))
-//                        .toList();
-
         List<Employee> candidates =
                 employeeRepository.findActiveNotOnLeave(day.getDayDate())
                         .stream()
-                        // 🔥 PRIORITIZE FEMALES FIRST
-                        .sorted(Comparator.comparing((Employee e) -> e.getGender() != Gender.FEMALE)
-                                .thenComparingLong(e -> shiftAssignmentRepository.sumWeeklyHours(
+                        .filter(e ->
+                                !shiftAssignmentRepository
+                                        .existsByEmployee_IdAndRosterDay_Id(
+                                                e.getId(),
+                                                day.getId()))
+                        .sorted(Comparator.comparingLong(
+                                e -> shiftAssignmentRepository.sumWeeklyHours(
                                         e.getId(),
                                         day.getRosterWeek().getId())))
                         .toList();
@@ -1587,11 +1518,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 
                 for (Employee emp : donors) {
 
-                    // 🔥 CRITICAL: DO NOT MOVE FEMALES OUT OF EVENING
-                    if (donorCode == EVENING && emp.getGender() == Gender.FEMALE) {
-                        continue;
-                    }
-
                     if (shortage <= 0) break;
 
                     try {
@@ -1779,11 +1705,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                         .findEmployeesByShiftCodeAndDate(EVENING, day.getDayDate());
 
         for (Employee emp : eveningPool) {
-
-            // 🔥 DO NOT STEAL FEMALES FROM EVENING
-            if (emp.getGender() == Gender.FEMALE) {
-                continue;
-            }
 
             if (shortage <= 0) break;
 
