@@ -1118,10 +1118,26 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                                         .existsByEmployee_IdAndRosterDay_Id(
                                                 e.getId(),
                                                 day.getId()))
-                        .sorted(Comparator.comparingLong(
-                                e -> shiftAssignmentRepository.sumWeeklyHours(
-                                        e.getId(),
-                                        day.getRosterWeek().getId())))
+                        .sorted(
+                                Comparator
+                                        // 🔥 females with low evening history first
+                                        .comparingLong((Employee e) ->
+                                                (e.getGender() == Gender.FEMALE ? 0 : 1000)
+                                                        +
+                                                        shiftAssignmentRepository.countRecentShiftType(
+                                                                e.getId(),
+                                                                EVENING,
+                                                                day.getDayDate(),
+                                                                day.getDayDate().minusDays(14)
+                                                        )
+                                        )
+
+                                        // then weekly load
+                                        .thenComparingLong(e ->
+                                                shiftAssignmentRepository.sumWeeklyHours(
+                                                        e.getId(),
+                                                        day.getRosterWeek().getId()))
+                        )
                         .toList();
         ShiftType eveningType = getShiftType(day, EVENING);
 
