@@ -173,6 +173,32 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
             for (Employee emp : employees) {
 
                 if (assignedToday.contains(emp.getId())) continue;
+                // =====================================================
+// 🔥 FEMALE EVENING RESERVATION (SOFT)
+// Prevent EARLY from consuming all females too early
+// =====================================================
+
+                if (sc == EARLY_MORNING
+                        && emp.getGender() == Gender.FEMALE) {
+
+                    long remainingFemales =
+                            employees.stream()
+                                    .filter(e -> !assignedToday.contains(e.getId()))
+                                    .filter(e -> e.getGender() == Gender.FEMALE)
+                                    .count();
+
+                    int eveningRemaining =
+                            eveningRequired
+                                    - assignedPerShift.getOrDefault(EVENING, 0);
+
+                    // keep at least 2 females available for evening
+                    int femaleReserve = Math.min(2, eveningRemaining);
+
+                    if (remainingFemales <= femaleReserve) {
+                        continue;
+                    }
+                }
+
 
                 int current = assignedPerShift.get(sc);
                 if (current >= required) break;
