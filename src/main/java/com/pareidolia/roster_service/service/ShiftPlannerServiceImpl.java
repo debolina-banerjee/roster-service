@@ -606,12 +606,27 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                         .findEveningAssignedEmployeesByDate(prevDate)
                         .stream()
                         .filter(e -> !assignedToday.contains(e.getId()))
-                        .sorted(Comparator.comparingLong(
-                                e -> shiftAssignmentRepository.sumWeeklyHours(
-                                        e.getId(),
-                                        day.getRosterWeek().getId()
-                                )
-                        ))
+                        .sorted(
+                                Comparator
+
+                                        // 🔥 Prefer employees with LOW recent EARLY load
+                                        .comparingLong((Employee e) ->
+                                                shiftAssignmentRepository.countRecentShiftType(
+                                                        e.getId(),
+                                                        EARLY_MORNING,
+                                                        day.getDayDate(),
+                                                        day.getDayDate().minusDays(14)
+                                                )
+                                        )
+
+                                        // then weekly hours
+                                        .thenComparingLong(e ->
+                                                shiftAssignmentRepository.sumWeeklyHours(
+                                                        e.getId(),
+                                                        day.getRosterWeek().getId()
+                                                )
+                                        )
+                        )
                         .toList();
 
         ShiftType early = getShiftType(day, EARLY_MORNING);
@@ -641,10 +656,27 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                             .stream()
                             .filter(e -> !assignedToday.contains(e.getId()))
                             // ✅ DO NOT gender filter — Early allows females
-                            .sorted(Comparator.comparingLong(
-                                    e -> shiftAssignmentRepository.sumWeeklyHours(
-                                            e.getId(),
-                                            day.getRosterWeek().getId())))
+                            .sorted(
+                                    Comparator
+
+                                            // 🔥 Prefer employees with LOW recent EARLY load
+                                            .comparingLong((Employee e) ->
+                                                    shiftAssignmentRepository.countRecentShiftType(
+                                                            e.getId(),
+                                                            EARLY_MORNING,
+                                                            day.getDayDate(),
+                                                            day.getDayDate().minusDays(14)
+                                                    )
+                                            )
+
+                                            // then weekly hours
+                                            .thenComparingLong(e ->
+                                                    shiftAssignmentRepository.sumWeeklyHours(
+                                                            e.getId(),
+                                                            day.getRosterWeek().getId()
+                                                    )
+                                            )
+                            )
                             .toList();
 
             for (Employee e : fallbackPool) {
