@@ -163,25 +163,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 
                 if (assignedToday.contains(emp.getId())) continue;
 
-                // 🔥 SOFT FEMALE EARLY CONTROL
-                if (sc == EARLY_MORNING
-                        && emp.getGender() == Gender.FEMALE) {
-
-                    long recentEarlyCount =
-                            shiftAssignmentRepository.countRecentShiftType(
-                                    emp.getId(),
-                                    EARLY_MORNING,
-                                    rosterDay.getDayDate(),
-                                    rosterDay.getDayDate().minusDays(14)
-                            );
-
-                    // females overloaded with early → try others first
-                    if (recentEarlyCount >= 5
-                            && assignedPerShift.get(sc) < required - 2) {
-                        continue;
-                    }
-                }
-
                 int current = assignedPerShift.get(sc);
                 if (current >= required) break;
 
@@ -606,27 +587,12 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                         .findEveningAssignedEmployeesByDate(prevDate)
                         .stream()
                         .filter(e -> !assignedToday.contains(e.getId()))
-                        .sorted(
-                                Comparator
-
-                                        // 🔥 Prefer employees with LOW recent EARLY load
-                                        .comparingLong((Employee e) ->
-                                                shiftAssignmentRepository.countRecentShiftType(
-                                                        e.getId(),
-                                                        EARLY_MORNING,
-                                                        day.getDayDate(),
-                                                        day.getDayDate().minusDays(14)
-                                                )
-                                        )
-
-                                        // then weekly hours
-                                        .thenComparingLong(e ->
-                                                shiftAssignmentRepository.sumWeeklyHours(
-                                                        e.getId(),
-                                                        day.getRosterWeek().getId()
-                                                )
-                                        )
-                        )
+                        .sorted(Comparator.comparingLong(
+                                e -> shiftAssignmentRepository.sumWeeklyHours(
+                                        e.getId(),
+                                        day.getRosterWeek().getId()
+                                )
+                        ))
                         .toList();
 
         ShiftType early = getShiftType(day, EARLY_MORNING);
@@ -656,46 +622,15 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                             .stream()
                             .filter(e -> !assignedToday.contains(e.getId()))
                             // ✅ DO NOT gender filter — Early allows females
-                            .sorted(
-                                    Comparator
-
-                                            // 🔥 Prefer employees with LOW recent EARLY load
-                                            .comparingLong((Employee e) ->
-                                                    shiftAssignmentRepository.countRecentShiftType(
-                                                            e.getId(),
-                                                            EARLY_MORNING,
-                                                            day.getDayDate(),
-                                                            day.getDayDate().minusDays(14)
-                                                    )
-                                            )
-
-                                            // then weekly hours
-                                            .thenComparingLong(e ->
-                                                    shiftAssignmentRepository.sumWeeklyHours(
-                                                            e.getId(),
-                                                            day.getRosterWeek().getId()
-                                                    )
-                                            )
-                            )
+                            .sorted(Comparator.comparingLong(
+                                    e -> shiftAssignmentRepository.sumWeeklyHours(
+                                            e.getId(),
+                                            day.getRosterWeek().getId())))
                             .toList();
 
             for (Employee e : fallbackPool) {
 
                 if (current >= required) break;
-
-
-                long recentEarlyCount =
-                        shiftAssignmentRepository.countRecentShiftType(
-                                e.getId(),
-                                EARLY_MORNING,
-                                day.getDayDate(),
-                                day.getDayDate().minusDays(7)
-                        );
-
-// 🚨 avoid overloading same employee into early recovery
-                if (recentEarlyCount >= 3) {
-                    continue;
-                }
 
                 try {
                     assignmentService.assignDragged(e, day, early);
@@ -1268,13 +1203,6 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                 shiftAssignmentRepository.countByRosterDayAndShiftCode(day.getId(), EVENING);
 
         if (graveNow < graveReq || earlyNow < earlyReq || eveningNow < eveningReq) {
-            return;
-        }
-
-        // 🚨 DO NOT create ON_DUTY if EARLY critically unstable
-        int earlyGap = earlyReq - (int) earlyNow;
-
-        if (earlyGap >= 2) {
             return;
         }
 
