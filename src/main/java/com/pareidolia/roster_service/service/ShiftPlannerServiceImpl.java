@@ -1271,6 +1271,13 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
             return;
         }
 
+        // 🚨 DO NOT create ON_DUTY if EARLY critically unstable
+        int earlyGap = earlyReq - (int) earlyNow;
+
+        if (earlyGap >= 2) {
+            return;
+        }
+
         int nightReq = requiredFor(day, NIGHT);
         long nightNow =
                 shiftAssignmentRepository.countByRosterDayAndShiftCode(day.getId(), NIGHT);

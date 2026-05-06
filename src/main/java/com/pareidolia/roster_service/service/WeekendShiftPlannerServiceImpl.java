@@ -1081,6 +1081,12 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
             return;
         }
 
+        // 🚨 DO NOT create ON_DUTY if EARLY critically unstable
+        int earlyGap = earlyReq - (int) earlyNow;
+
+        if (earlyGap >= 2) {
+            return;
+        }
 
         int remainingEmployees =
                 employees.size() - assignedToday.size();
