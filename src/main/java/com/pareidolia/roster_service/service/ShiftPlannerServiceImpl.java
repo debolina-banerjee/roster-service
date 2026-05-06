@@ -683,6 +683,20 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
 
                 if (current >= required) break;
 
+
+                long recentEarlyCount =
+                        shiftAssignmentRepository.countRecentShiftType(
+                                e.getId(),
+                                EARLY_MORNING,
+                                day.getDayDate(),
+                                day.getDayDate().minusDays(7)
+                        );
+
+// 🚨 avoid overloading same employee into early recovery
+                if (recentEarlyCount >= 3) {
+                    continue;
+                }
+
                 try {
                     assignmentService.assignDragged(e, day, early);
                     assignedToday.add(e.getId());
