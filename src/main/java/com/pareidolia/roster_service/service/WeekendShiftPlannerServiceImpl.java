@@ -103,22 +103,16 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                                 rosterDay.getDayDate().minusDays(14))
                         )
 
-                        // 🔥 FEMALE EVENING PRIORITY
-                        .thenComparingLong(e -> {
+                        // 🔥 SMALL EVENING FAIRNESS BIAS
+                        .thenComparingLong(e ->
 
-                            if (e.getGender() == Gender.FEMALE) {
-
-                                return shiftAssignmentRepository.countRecentShiftType(
+                                shiftAssignmentRepository.countRecentShiftType(
                                         e.getId(),
                                         EVENING,
                                         rosterDay.getDayDate(),
                                         rosterDay.getDayDate().minusDays(21)
-                                );
-
-                            }
-
-                            return 999; // males deprioritized
-                        })
+                                )
+                        )
 
                         .thenComparingLong(e ->
                                 shiftAssignmentRepository.sumWeeklyHours(
