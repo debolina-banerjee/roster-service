@@ -129,6 +129,24 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
                 if (assignedToday.contains(emp.getId())) continue;
 
+                // 🔥 SOFT FEMALE EARLY CONTROL
+                if (sc == EARLY_MORNING
+                        && emp.getGender() == Gender.FEMALE) {
+
+                    long recentEarlyCount =
+                            shiftAssignmentRepository.countRecentShiftType(
+                                    emp.getId(),
+                                    EARLY_MORNING,
+                                    rosterDay.getDayDate(),
+                                    rosterDay.getDayDate().minusDays(14)
+                            );
+
+                    // females overloaded with early → try others first
+                    if (recentEarlyCount >= 4) {
+                        continue;
+                    }
+                }
+
                 int current = assignedPerShift.get(sc);
                 if (current >= required) break;
 
