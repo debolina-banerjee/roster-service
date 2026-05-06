@@ -176,7 +176,8 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                             );
 
                     // females overloaded with early → try others first
-                    if (recentEarlyCount >= 4) {
+                    if (recentEarlyCount >= 5
+                            && assignedPerShift.get(sc) < required - 1) {
                         continue;
                     }
                 }
