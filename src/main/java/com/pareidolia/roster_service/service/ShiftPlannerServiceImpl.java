@@ -113,6 +113,22 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                                                 rosterDay.getDayDate().minusDays(14))
                         )
 
+                        // 🔥 SMALL EVENING FAIRNESS BIAS
+                        .thenComparingLong(e ->
+
+                                (e.getGender() == Gender.FEMALE)
+                                        ?
+
+                                        shiftAssignmentRepository.countRecentShiftType(
+                                                e.getId(),
+                                                EVENING,
+                                                rosterDay.getDayDate(),
+                                                rosterDay.getDayDate().minusDays(21)
+                                        )
+
+                                        : 0
+                        )
+
                         // Existing logic (SECONDARY)
                         .thenComparingLong(e ->
                                 shiftAssignmentRepository.sumWeeklyHours(
