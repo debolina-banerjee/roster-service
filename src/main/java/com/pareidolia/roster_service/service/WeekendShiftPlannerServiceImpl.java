@@ -160,7 +160,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                     - assignedPerShift.getOrDefault(EVENING, 0);
 
                     // keep at least 2 females available for evening
-                    int femaleReserve = Math.min(2, eveningRemaining);
+                    int femaleReserve = (eveningRemaining >= 3) ? 1 : 0;
 
                     if (remainingFemales <= femaleReserve) {
                         continue;
@@ -243,7 +243,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                 if (!isWeekend &&
                         sc != EVENING &&
                         sc != EARLY_MORNING &&
-                        eveningRemaining > 0) {
+                        eveningRemaining > 1) {
 
                     int safetyBuffer = 0;
 
