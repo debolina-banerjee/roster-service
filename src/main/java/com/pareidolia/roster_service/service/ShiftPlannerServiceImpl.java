@@ -238,7 +238,7 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                         totalNightFamilyRemaining > 0;
 
                 boolean malePoolTooTight =
-                        remainingMalePool < totalNightFamilyRemaining;
+                        remainingMalePool < (totalNightFamilyRemaining - 1);
 
 //                if (sc != NIGHT && sc != GRAVEYARD
 //                        && nightFamilyCritical
