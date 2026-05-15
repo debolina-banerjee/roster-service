@@ -243,7 +243,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                 if (!isWeekend &&
                         sc != EVENING &&
                         sc != EARLY_MORNING &&
-                        eveningRemaining > 1) {
+                        eveningRemaining > 2) {
 
                     int safetyBuffer = 0;
 
@@ -1004,7 +1004,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                 e.getId(),
                                 day.getRosterWeek().getId());
 
-                if (weeklyHours >= e.getMaxWeeklyHours()) {
+                if (weeklyHours >= e.getMaxWeeklyHours() && e.getGender() != Gender.FEMALE) {
                     continue;
                 }
 
