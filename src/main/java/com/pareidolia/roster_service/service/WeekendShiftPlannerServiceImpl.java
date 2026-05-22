@@ -441,7 +441,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
         performEveningLastRescue(rosterDay, assignedToday);
 
         // 🔥 NEW
-        //performOnDutyToShortageRecovery(rosterDay, assignedToday);
+        performOnDutyToShortageRecovery(rosterDay, assignedToday);
 
 
         /*Added last moment*/
@@ -449,11 +449,6 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
 
         /* only after all critical shifts are safe */
         performOnDutyBackfill(rosterDay, employees, assignedToday);
-
-
-
-        /* then recover shortages using ON_DUTY */
-        performOnDutyToShortageRecovery(rosterDay, assignedToday);
 
 
 
@@ -2119,17 +2114,6 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
                                     day.getId(),
                                     ON_DUTY
                             );
-
-            onDutyAssignments.sort(
-                    Comparator.comparingLong(a ->
-                            shiftAssignmentRepository.countRecentShiftType(
-                                    a.getEmployee().getId(),
-                                    target,
-                                    day.getDayDate(),
-                                    day.getDayDate().minusDays(14)
-                            )
-                    )
-            );
 
             for (ShiftAssignment od : onDutyAssignments) {
 
