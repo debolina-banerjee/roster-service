@@ -473,12 +473,15 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
         }
 
         // 🔥 NEW
-        performOnDutyToShortageRecovery(rosterDay, assignedToday);
+        //performOnDutyToShortageRecovery(rosterDay, assignedToday);
 
 
 //        performCriticalGraveyardFill( rosterDay, assignedToday);
         performOnDutyBackfill(rosterDay, employees, assignedToday);
 
+
+        // then convert ON_DUTY to shortage shifts
+        performOnDutyToShortageRecovery(rosterDay, assignedToday);
 
 
         ensureReviewerCoverageBySwap(rosterDay, assignedToday);
@@ -2033,6 +2036,17 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                                     day.getId(),
                                     ON_DUTY
                             );
+
+            onDutyAssignments.sort(
+                    Comparator.comparingLong(a ->
+                            shiftAssignmentRepository.countRecentShiftType(
+                                    a.getEmployee().getId(),
+                                    target,
+                                    day.getDayDate(),
+                                    day.getDayDate().minusDays(14)
+                            )
+                    )
+            );
 
             for (ShiftAssignment od : onDutyAssignments) {
 
