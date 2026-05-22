@@ -440,8 +440,7 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
         /* rescue if evening still short */
         performEveningLastRescue(rosterDay, assignedToday);
 
-        // 🔥 NEW
-        performOnDutyToShortageRecovery(rosterDay, assignedToday);
+
 
 
         /*Added last moment*/
@@ -450,7 +449,8 @@ public class WeekendShiftPlannerServiceImpl implements WeekendShiftPlannerServic
         /* only after all critical shifts are safe */
         performOnDutyBackfill(rosterDay, employees, assignedToday);
 
-
+        // 🔥 NEW
+        performOnDutyToShortageRecovery(rosterDay, assignedToday);
 
         ensureReviewerCoverageBySwap(rosterDay, assignedToday);
 
