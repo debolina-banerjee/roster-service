@@ -472,10 +472,12 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
             performCriticalGraveyardFill(rosterDay, assignedToday);
         }
 
-        performOnDutyBackfill(rosterDay, employees, assignedToday);
+
 
         // 🔥 NEW
         performOnDutyToShortageRecovery(rosterDay, assignedToday);
+
+        performOnDutyBackfill(rosterDay, employees, assignedToday);
 
 
 //        performCriticalGraveyardFill( rosterDay, assignedToday);
