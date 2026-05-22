@@ -471,6 +471,11 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
         if (!donorDay) {
             performCriticalGraveyardFill(rosterDay, assignedToday);
         }
+
+        // 🔥 NEW
+        performOnDutyToShortageRecovery(rosterDay, assignedToday);
+
+
 //        performCriticalGraveyardFill( rosterDay, assignedToday);
         performOnDutyBackfill(rosterDay, employees, assignedToday);
 
@@ -1990,6 +1995,103 @@ public class ShiftPlannerServiceImpl implements ShiftPlannerService {
                     break;
 
                 } catch (Exception ignored) {
+                }
+            }
+        }
+    }
+
+
+    private void performOnDutyToShortageRecovery(
+            RosterDay day,
+            Set<Long> assignedToday) {
+
+        List<ShiftCode> targetShifts =
+                List.of(EVENING, EARLY_MORNING);
+
+        for (ShiftCode target : targetShifts) {
+
+            int required = requiredFor(day, target);
+
+            long current =
+                    shiftAssignmentRepository.countByRosterDayAndShiftCode(
+                            day.getId(),
+                            target
+                    );
+
+            if (current >= required) {
+                continue;
+            }
+
+            int shortage = required - (int) current;
+
+            log.warn("ON_DUTY recovery triggered for {} shortage={}",
+                    target, shortage);
+
+            List<ShiftAssignment> onDutyAssignments =
+                    shiftAssignmentRepository
+                            .findByRosterDayAndShiftCode(
+                                    day.getId(),
+                                    ON_DUTY
+                            );
+
+            for (ShiftAssignment od : onDutyAssignments) {
+
+                if (shortage <= 0) {
+                    break;
+                }
+
+                Employee emp = od.getEmployee();
+
+                try {
+
+                    // remove ON_DUTY
+                    shiftAssignmentRepository.delete(od);
+
+                    assignedToday.remove(emp.getId());
+
+                    RosterContext ctx =
+                            contextBuilder.build(
+                                            emp,
+                                            day,
+                                            getShiftType(day, target)
+                                    ).toBuilder()
+                                    .draggedOverride(true)
+                                    .build();
+
+                    validationService.validateHard(ctx);
+
+                    assignmentService.assign(ctx);
+
+                    assignedToday.add(emp.getId());
+
+                    shortage--;
+
+                    log.warn(
+                            "Converted ON_DUTY → {} for emp={}",
+                            target,
+                            emp.getEmployeeCode()
+                    );
+
+                } catch (Exception ex) {
+
+                    // restore ON_DUTY if failed
+                    try {
+
+                        RosterContext restoreCtx =
+                                contextBuilder.build(
+                                                emp,
+                                                day,
+                                                getShiftType(day, ON_DUTY)
+                                        ).toBuilder()
+                                        .draggedOverride(true)
+                                        .build();
+
+                        assignmentService.assign(restoreCtx);
+
+                        assignedToday.add(emp.getId());
+
+                    } catch (Exception ignored) {
+                    }
                 }
             }
         }
